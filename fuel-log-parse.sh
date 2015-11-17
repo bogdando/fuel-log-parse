@@ -1,0 +1,82 @@
+#!/bin/bash
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+search_for="\s\b(Err|err|alert|Traceback|TRACE|crit)|MODULAR"
+drop="BIOS|ACPI|MAC|Error downloading|NetworkManager|INFO REPORT|accepting AMQP connection|closing AMQP connection|trailing slashes removed|Err http|wget:|root.log|Installation finished|PROPERTY NAME|INVALID|hiera|errors: 0|udevd|crm_element_value:|__add_xml_object:|Could not load host"
+
+usage(){
+  cat << EOF
+  Usage:
+    -h - print this usage info
+    -d - use fuel orchestration events parser"
+    -1 - use python formatted timestamps parser
+    -2 - use atop formatted events parser
+    -f x - cut events to start from value x
+    -t x - cut events to end up to value x
+    (-s) x - search for x
+           default search is: ${search_for}
+    -x y - add y to exclude from search list
+           default exclude list is: ${drop}
+EOF
+}
+
+[[ "$#" = "0" ]] && usage
+pd=1;p1=1;p2=1;pf='';pt='';fx=1;generic=0
+while (( $# )); do
+  case "$1" in
+    '-h') usage >&2; exit 0 ;;
+    '-d') generic=1; pd=0 ;;
+    '-1') generic=1; p1=0 ;;
+    '-2') generic=1; p2=0 ;;
+    '-f') shift; pf="${1}" ;;
+    '-t') shift; pt="${1}" ;;
+    '-x') shift; drop="${drop}|${1}" ;;
+    '-s') shift; search_for="${1}" ;;
+    *) search_for="${1}" ;;
+  esac
+  shift
+done
+
+echo USE search $search_for >&2
+echo USE exclude $drop >&2
+
+# fuel orchestration
+[[ $pd -eq 0 ]] && search_for="Spent |Puppet run failed|Error running RPC|Processing RPC call|Starting OS provisioning|step.*offset"
+
+# nailgun python things
+[[ $p1 -eq 0 ]] && (grep -HEr "${search_for}" .| perl -p -e "s/\S*^([^\ T]+)\s/\1T/" |\
+  perl -n -e "m/(?<file>\S+)\.log\:(?<time>\d{4}\-\d{2}\-\d{2}T?\s?\d{2}\:\d{2}\:\d{2}(\.\d{0,6})?(\+\d{2}\:\d{2})?)(?<rest>.*$)/ && printf (\"%31s%28s%1s\n\",$+{time},$+{file},$+{rest})" |\
+  egrep -v "${drop}" | sort > /tmp/out)
+
+# atop stuff (TODO rework with perl)
+[[ $p2 -eq 0 ]] && (echo "Date Time Node Running(sec) PID Exit_code PPID filename PRG_headers_as_is" && grep -HEr "${search_for}" . |\
+  awk --posix 'match($0, /[0-9]{4}\/[0-9]{2}\/[0-9]{2} [0-9]{2}\:[0-9]{2}\:[0-9]{2}/, m) match($0, /node\-[0-9]+/, n) {if (m[0] && n[0]) print m[0],n[0],$3-$15,$7,$14,$(NF-11),$0}' |\
+  sort | column -t > /tmp/out)
+
+# generic stuff from logs snapshot /var/log/remote/*
+[[ $generic -eq 0 ]] && (grep -HEIr "${search_for}" . |\
+  perl -n -e "m/(?<node>node\-\d+)\.\S+\/(?<file>\S+)\.log\:(?<time>\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}\.[0-9]{6}(\+\d{2}\:\d{2})?)(?<rest>.*$)/ && printf (\"%31s%9s%28s%1s\n\",$+{time},$+{node},$+{file},$+{rest})" |\
+  egrep -v "${drop}" | sort > /tmp/out)
+
+# apply from / to
+if [[ "${pf}" ]]; then
+  echo USE FROM $pf >&2
+  from="${pf}" perl -lne '$_=~s/^\s+//;print if ($ENV{'from'} le (split / /, $_, 1)[0])' </tmp/out >/tmp/out2
+  cp /tmp/out2 /tmp/out
+fi
+if [[ "${pt}" ]]; then
+  echo USE TO $pt >&2
+  to="${pt}" perl -lne '$_=~s/^\s+//;print if ($ENV{'to'} ge (split / /, $_, 1)[0])' </tmp/out
+else
+  cat /tmp/out
+fi
