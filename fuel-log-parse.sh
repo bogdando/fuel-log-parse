@@ -13,6 +13,10 @@
 
 search_for="\s\b(Err|err|alert|Traceback|TRACE|crit)|MODULAR"
 drop="BIOS|ACPI|MAC|Error downloading|NetworkManager|INFO REPORT|accepting AMQP connection|closing AMQP connection|trailing slashes removed|Err http|wget:|root.log|Installation finished|PROPERTY NAME|INVALID|hiera|errors: 0|udevd|crm_element_value:|__add_xml_object:|Could not load host"
+rfc3339="\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}\.[0-9]{6}(\+\d{2}\:\d{2})?"
+rfc3164="\w{3}\s+\d{1,2}\s\d{2}:\d{2}:\d{2}"
+ts="${rfc3339}"
+tabs=31
 
 usage(){
   cat << EOF
@@ -23,6 +27,8 @@ usage(){
     -2 - use atop formatted events parser
     -f x - cut events to start from value x
     -t x - cut events to end up to value x
+    -rfc3164 - switch to the rfc3164 parser
+             instead of the rfc3339
     (-s) x - search for x
            default search is: ${search_for}
     -x y - add y to exclude from search list
@@ -40,6 +46,7 @@ while (( $# )); do
     '-2') generic=1; p2=0 ;;
     '-f') shift; pf="${1}" ;;
     '-t') shift; pt="${1}" ;;
+    '-rfc3164') shift; ts="${rfc3164}"; tabs=15 ;;
     '-x') shift; drop="${drop}|${1}" ;;
     '-s') shift; search_for="${1}" ;;
     *) search_for="${1}" ;;
@@ -55,7 +62,7 @@ echo USE exclude $drop >&2
 
 # nailgun python things
 [[ $p1 -eq 0 ]] && (grep -HEr "${search_for}" .| perl -p -e "s/\S*^([^\ T]+)\s/\1T/" |\
-  perl -n -e "m/(?<file>\S+)\.log\:(?<time>\d{4}\-\d{2}\-\d{2}T?\s?\d{2}\:\d{2}\:\d{2}(\.\d{0,6})?(\+\d{2}\:\d{2})?)(?<rest>.*$)/ && printf (\"%31s%28s%1s\n\",$+{time},$+{file},$+{rest})" |\
+  perl -n -e "m/(?<file>\S+)\.log\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%28s%1s\n\",$+{time},$+{file},$+{rest})" |\
   egrep -v "${drop}" | sort > /tmp/out)
 
 # atop stuff (TODO rework with perl)
@@ -65,7 +72,7 @@ echo USE exclude $drop >&2
 
 # generic stuff from logs snapshot /var/log/remote/*
 [[ $generic -eq 0 ]] && (grep -HEIr "${search_for}" . |\
-  perl -n -e "m/(?<node>node\-\d+)\.\S+\/(?<file>\S+)\.log\:(?<time>\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}\.[0-9]{6}(\+\d{2}\:\d{2})?)(?<rest>.*$)/ && printf (\"%31s%9s%28s%1s\n\",$+{time},$+{node},$+{file},$+{rest})" |\
+  perl -n -e "m/(?<node>node\-\d+)\.\S+\/(?<file>\S+)\.log\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%9s%28s%1s\n\",$+{time},$+{node},$+{file},$+{rest})" |\
   egrep -v "${drop}" | sort > /tmp/out)
 
 # apply from / to
