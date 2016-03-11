@@ -12,7 +12,7 @@
 # limitations under the License.
 
 search_for="\s\b(Err|err|alert|Traceback|TRACE|crit)|MODULAR"
-drop="BIOS|ACPI|MAC|Error downloading|NetworkManager|INFO REPORT|accepting AMQP connection|closing AMQP connection|trailing slashes removed|Err http|wget:|root.log|Installation finished|PROPERTY NAME|INVALID|hiera|errors: 0|udevd|crm_element_value:|__add_xml_object:|Could not load host"
+drop="Object audit|consider using the|already in this config|xconsole|CRON|multipathd|BIOS|ACPI|MAC|Error downloading|NetworkManager|INFO REPORT|accepting AMQP connection|closing AMQP connection|trailing slashes removed|Err http|wget:|root.log|Installation finished|PROPERTY NAME|INVALID|errors: 0|udevd|crm_element_value:|__add_xml_object:|Could not load host"
 rfc3339="\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}\.[0-9]{6}(\+\d{2}\:\d{2})?"
 rfc3164="\w{3}\s+\d{1,2}\s\d{2}:\d{2}:\d{2}"
 ts="${rfc3339}"
