@@ -13,17 +13,20 @@
 
 search_for="\s\b(Err|err|alert|Traceback|TRACE|crit)|MODULAR"
 drop="Object audit|consider using the|already in this config|xconsole|CRON|multipathd|BIOS|ACPI|MAC|Error downloading|NetworkManager|INFO REPORT|accepting AMQP connection|closing AMQP connection|trailing slashes removed|Err http|wget:|root.log|Installation finished|PROPERTY NAME|INVALID|errors: 0|udevd|crm_element_value:|__add_xml_object:|Could not load host"
-rfc3339="\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}\.[0-9]{6}(\+\d{2}\:\d{2})?"
+rfc3339="\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}(\.[0-9]{6})?(\+\d{2}\:\d{2})?"
 rfc3164="\w{3}\s+\d{1,2}\s\d{2}:\d{2}:\d{2}"
 ts="${rfc3339}"
 tabs=31
+nodemask="node\-[0-9]+"
 
 usage(){
   cat << EOF
   Usage:
     -h - print this usage info
+    -n x - give a custom node names mask
+           default is: ${nodemask}
     -d - use fuel orchestration events parser"
-    -1 - use python formatted timestamps parser
+    -g - use generic logs format parser
     -2 - use atop formatted events parser
     -f x - cut events to start from value x
     -t x - cut events to end up to value x
@@ -42,7 +45,8 @@ while (( $# )); do
   case "$1" in
     '-h') usage >&2; exit 0 ;;
     '-d') generic=1; pd=0 ;;
-    '-1') generic=1; p1=0 ;;
+    '-n') shift; nodemask="${1}" ;;
+    '-g') generic=1; p1=0 ;;
     '-2') generic=1; p2=0 ;;
     '-f') shift; pf="${1}" ;;
     '-t') shift; pt="${1}" ;;
@@ -56,34 +60,37 @@ done
 
 echo USE search $search_for >&2
 echo USE exclude $drop >&2
+out=$(mktemp /tmp/tmp.XXXXXXXXXX)
+out2=$(mktemp /tmp/tmp.XXXXXXXXXX)
+trap 'rm -f ${out} ${out2}' EXIT INT HUP
 
 # fuel orchestration
 [[ $pd -eq 0 ]] && search_for="Spent |Puppet run failed|Error running RPC|Processing RPC call|Starting OS provisioning|step.*offset"
 
 # nailgun python things
 [[ $p1 -eq 0 ]] && (grep -HEr "${search_for}" .| perl -p -e "s/\S*^([^\ T]+)\s/\1T/" |\
-  perl -n -e "m/(?<file>\S+)\.log\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%28s%1s\n\",$+{time},$+{file},$+{rest})" |\
-  egrep -v "${drop}" | sort > /tmp/out)
+  perl -n -e "m/(?<file>\S+)(\.log)?\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%28s%1s\n\",$+{time},$+{file},$+{rest})" |\
+  egrep -v "${drop}" | sort > "${out}")
 
 # atop stuff (TODO rework with perl)
 [[ $p2 -eq 0 ]] && (echo "Date Time Node Running(sec) PID Exit_code PPID filename PRG_headers_as_is" && grep -HEr "${search_for}" . |\
-  awk --posix 'match($0, /[0-9]{4}\/[0-9]{2}\/[0-9]{2} [0-9]{2}\:[0-9]{2}\:[0-9]{2}/, m) match($0, /node\-[0-9]+/, n) {if (m[0] && n[0]) print m[0],n[0],$3-$15,$7,$14,$(NF-11),$0}' |\
-  sort | column -t > /tmp/out)
+  awk -v n=$nodemask --posix "match($0, /[0-9]{4}\/[0-9]{2}\/[0-9]{2} [0-9]{2}\:[0-9]{2}\:[0-9]{2}/, m) match($0, /$n/, n) {if (m[0] && n[0]) print m[0],n[0],$3-$15,$7,$14,$(NF-11),$0}" |\
+  sort | column -t > "${out}")
 
 # generic stuff from logs snapshot /var/log/remote/*
 [[ $generic -eq 0 ]] && (grep -HEIr "${search_for}" . |\
-  perl -n -e "m/(?<node>node\-\d+)\.\S+\/(?<file>\S+)\.log\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%9s%28s%1s\n\",$+{time},$+{node},$+{file},$+{rest})" |\
-  egrep -v "${drop}" | sort > /tmp/out)
+  perl -n -e "m/(?<node>${nodemask})(\.\S+)?\/(?<file>\S+)(\.log)?\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%9s%28s%1s\n\",$+{time},$+{node},$+{file},$+{rest})" |\
+  egrep -v "${drop}" | sort > "${out}")
 
 # apply from / to
 if [[ "${pf}" ]]; then
   echo USE FROM $pf >&2
-  from="${pf}" perl -lne '$_=~s/^\s+//;print if ($ENV{'from'} le (split / /, $_, 1)[0])' </tmp/out >/tmp/out2
-  cp /tmp/out2 /tmp/out
+  from="${pf}" perl -lne '$_=~s/^\s+//;print if ($ENV{'from'} le (split / /, $_, 1)[0])' <"${out}" >"${out2}"
+  cp -f "${out2}" "${out}"
 fi
 if [[ "${pt}" ]]; then
   echo USE TO $pt >&2
-  to="${pt}" perl -lne '$_=~s/^\s+//;print if ($ENV{'to'} ge (split / /, $_, 1)[0])' </tmp/out
+  to="${pt}" perl -lne '$_=~s/^\s+//;print if ($ENV{'to'} ge (split / /, $_, 1)[0])' <"${out}"
 else
-  cat /tmp/out
+  cat "${out}"
 fi
