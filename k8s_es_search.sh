@@ -5,7 +5,7 @@ ip="${ESIP:-$(kubectl get pods --namespace $ns --selector=app=elasticsearch  --o
 type kubectl 2>/dev/null || ip="${ip:-localhost}"
 index="${ESIND:-_all}"
 size="${SIZE:-50}"
-format="\(.Timestamp) \(.Hostname) \(.Logger).\(.programname) \(.severity_label) \(.python_module) [\(.request_id)] -- \(.Payload)"
+format="\(.Timestamp) \(.Hostname) \(.Logger).\(.programname).\(.container_name) \(.severity_label) \(.python_module) [\(.request_id)] -- \(.Payload)"
 search="${1:-/error|alert|trace.*|crit.*|fatal/}"
 if [ -z "${ip}" ]; then
   echo "ES can't be found!" >&2
