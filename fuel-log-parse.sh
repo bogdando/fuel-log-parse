@@ -11,10 +11,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-search_for="\s\b(Err|err|alert|Traceback|TRACE|crit|fatal|MODULAR|HANDLER|TASK|PLAY|Unexpected|FAILED)"
+search_for="\s\b(Err|err|alert|Traceback|TRACE|crit|fatal|MODULAR|HANDLER|TASK|PLAY|Unexpected|FAILED|denied|cannot)"
 drop="skipping:|No such cont|Cannot kill cont|Object audit|consider using the|already in this config|xconsole|CRON|multipathd|BIOS|ACPI|MAC|Error downloading|NetworkManager|INFO REPORT|accepting AMQP connection|closing AMQP connection|trailing slashes removed|Err http|wget:|root.log|Installation finished|PROPERTY NAME|INVALID|errors: 0|udevd|crm_element_value:|__add_xml_object:|Could not load host"
 rfc3339="\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}(\.[0-9]{6})?(\+\d{2}\:\d{2})?"
-rfc3164="\w{3}\s+\d{1,2}\s\d{2}:\d{2}:\d{2}"
+rfc3164="\w{3}\s+?\d{1,2}\s\d{2}:\d{2}:\d{2}"
 py="\d{4}\-\d{2}\-\d{2}\s\d{2}\:\d{2}\:\d{2}([,\.]\d{3,6})?"
 ts="${rfc3339}|${py}"
 tabs=31
@@ -73,7 +73,7 @@ trap 'rm -f ${out} ${out2}' EXIT INT HUP
 [[ $pd -eq 0 ]] && search_for="Spent |Puppet run failed|Error running RPC|Processing RPC call|Starting OS provisioning|step.*offset"
 
 # nailgun python things
-[[ $p1 -eq 0 ]] && (grep -HEr "${search_for}" .| perl -p -e "s/\S*^([^\ T]+)\s/\1T/" |\
+[[ $p1 -eq 0 ]] && (grep -HEr "${search_for}" .| perl -p -e "s/\S[^-]*^([^\ T]+)\s/\1T/" |\
   perl -n -e "m/(?<file>\S+)(\.log)?\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%28s%1s\n\",\"$+{time} \",\"$+{file} \",\"$+{rest}\")" | egrep -v "${drop}" | sort > "${out}")
 
 # atop stuff (TODO rework with perl)
