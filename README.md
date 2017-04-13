@@ -88,11 +88,10 @@ $
 # Show only errors on subnodes (rfc3164)
 $ fuel-log-parse -n ".*subnode.*" -rfc3164
 $
-# Show names of executed ansible tasks and generic errors in the py/rfc3339 formatted logs
-$ fuel-log-parse -n ".*"
-$
-# Run parser for *all* events with py/rfc3339 timestamps, with or w/o node names given
-$ ./fuel-log-parse.sh -n ".*" -s ".*"
+# Show names of executed ansible tasks and generic errors in the py/rfc3339/3164 formatted logs
+# Also drop unrelated CI infra and ansible "test -f" messages
+$ fuel-log-parse -x "find remote ref|Unexpected end of command stream|test" -n ".*"
+$ fuel-log-parse -x "find remote ref|Unexpected end of command stream|test" -n ".*" -rfc3164
 ```
 Note, it can't sort rfc3164 (Mar 22 13:34:08) time among with py/rfc3339 format. Yet.
 
