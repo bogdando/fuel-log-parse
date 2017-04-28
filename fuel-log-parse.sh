@@ -12,7 +12,8 @@
 # limitations under the License.
 
 search_for="\s\b(E[rR]{2}:?|alert|Traceback|TRACE|crit|fatal|MODULAR|HANDLER|TASK|PLAY|Unexpected|FAIL|[Ff]ail|denied|non-zero|[Tt]ime[d\s]?out|UNCAUGHT|EXCEPTION|Unknown|[Aa]ssertion|in use)"
-drop="skipping:|No such cont|No such image|Cannot kill cont|Object audit|consider using the|already in this config|xconsole|CRON|multipathd|BIOS|ACPI|MAC|Error downloading|NetworkManager|INFO REPORT|accepting AMQP connection|closing AMQP connection|trailing slashes removed|Err http|wget:|root.log|Installation finished|PROPERTY NAME|INVALID|errors: 0|udevd|crm_element_value:|__add_xml_object:|Could not load host"
+drop="skipping:|No such (cont|image)|Cannot kill cont|Object audit|consider using the|already in this config|xconsole|CRON|multipathd|BIOS|ACPI|MAC|Error downloading|NetworkManager|INFO REPORT|ing AMQP connection|trailing slashes|wget:|root.log|Installation finished|PROPERTY NAME|INVALID|errors[:=]0|udevd|crm_element_value:|__add_xml_object:|Could not load host|MemoryDenyWriteExecute|D-Bus connection|find remote ref|Unexpected end of command stream|eprecate|blob unknown|WARN|error None|[Ww]arning|Dependency.*has failures|Err(no)? (http|2|11[13]|104)|scss.ast:Function not found|password check failed|Failed
+password for root"
 rfc3339="\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}(\.[0-9]{6})?(\+\d{2}\:\d{2})?"
 rfc3164="\w{3}\s+?\d{1,2}\s\d{2}:\d{2}:\d{2}"
 py="\d{4}\-\d{2}\-\d{2}\s\d{2}\:\d{2}\:\d{2}([,\.]\d{3,6})?"
