@@ -1,0 +1,64 @@
+#!/bin/bash
+# Source https://git.openstack.org/cgit/openstack-infra/tripleo-ci/tree/scripts/getthelogs
+set -eu
+
+ASK=${ASK:-yes}
+ALL=no
+BASEURL=$1
+SC=$(dirname $1 | grep -o \/ | wc -w)
+[[ $BASEURL =~ \/logs && SC -ge 5 ]] || BASEURL=${BASEURL}/logs
+TDIR=${BASEURL##*http://}
+TDIR=/tmp/ci-${TDIR}
+
+mkdir -p ${TDIR}
+cd ${TDIR}
+
+echo $BASEURL > BASEURL
+
+function _getfile(){
+    URL=$1
+    BASENAME=$(basename $1)
+
+    if [[ $BASENAME =~ .*(\.tar|\.gz?|\.html).* && ! -e $BASENAME ]] ; then
+        [ "$ASK" = "yes" -a "$ALL" != "yes" ] && read -p "Want $BASENAME? (Y/n/a/q):" X
+        X=${X:-y}
+        case $X in
+        y|a)
+            echo "Getting $BASENAME"
+            curl -sO ${URL} || curl -sO ${URL}.gz
+            if [[ $BASENAME =~ .*(\.tar).* ]] ; then
+                mkdir ${BASENAME}_
+                tar -xf $BASENAME -C ${BASENAME}_ &
+            fi
+            [ "$X" = "a" ] && ALL=yes
+            continue
+            ;;
+        n) ;;
+        q) exit 0 ;;
+        *) ;;
+        esac
+    fi
+}
+
+function finish(){
+    export FILES
+    export ASK
+    export -f getthelogs _getfile
+    trap - EXIT
+    PS1="JOBLOGS ]\$  " bash --noprofile --norc
+    exit
+}
+
+FILES="$BASEURL/../console.html $BASEURL/undercloud/home/jenkins/failed_deployment_list.log.txt.gz"
+for FILE in $(curl -s $BASEURL/ 2> /dev/null | grep href | sed -e 's/.*href="\([^"]*\)".*/\1/g' ) ; do
+    FILES="$FILES $BASEURL/$FILE"
+done
+
+function getthelogs(){
+    for FILE in ${FILES}; do
+        _getfile $FILE
+    done
+}
+
+[ "${1:-' '}" ] && trap finish EXIT SIGINT SIGTERM
+getthelogs
