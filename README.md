@@ -74,8 +74,8 @@ $
 $ fuel-log-parse -n ".*subnode.*" -rfc3164
 $
 # Show names of executed ansible tasks and generic errors in the py/rfc3339/3164 formatted logs
-# Also drop unrelated CI infra and ansible "test -f" messages
-$ X="find remote ref|Unexpected end of command stream|test|authentication failure|0 fail|Unknown lvalue|DEBUG"
+# Also drop unrelated CI infra noise and ansible "test -f" messages
+$ export X="test|session|secure"
 $ fuel-log-parse -x "$X" -n ".*"
 $ fuel-log-parse -x "$X" -n ".*" -rfc3164
 ```

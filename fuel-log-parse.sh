@@ -11,9 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-search_for="\s\b(E[rR]{2}:?|alert|Traceback|TRACE|crit|fatal|MODULAR|HANDLER|TASK|PLAY|Unexpected|FAIL|[Ff]ail|denied|non-zero|[Tt]ime[d\s]?out|UNCAUGHT|EXCEPTION|Unknown|[Aa]ssertion|in use)"
-drop="skipping:|No such (cont|image)|Cannot kill cont|Object audit|consider using the|already in this config|xconsole|CRON|multipathd|BIOS|ACPI|MAC|Error downloading|NetworkManager|INFO REPORT|ing AMQP connection|trailing slashes|wget:|root.log|Installation finished|PROPERTY NAME|INVALID|errors[:=]0|udevd|crm_element_value:|__add_xml_object:|Could not load host|MemoryDenyWriteExecute|D-Bus connection|find remote ref|Unexpected end of command stream|eprecate|blob unknown|WARN|error None|[Ww]arning|Dependency.*has failures|Err(no)? (http|2|11[13]|104)|scss.ast:Function not found|password check failed|Failed
-password for root"
+search_for="\s\b(E[rR]{2}:?|alert|crit|fatal|MODULAR|HANDLER|TASK|PLAY|Unexpected|FAIL|[Ff]ail|denied|non-zero|[Tt]ime[d\s]?out|UNCAUGHT|EXCEPTION|Unknown|[Aa]ssertion|in use)"
+drop="skipping:|No such (cont|image)|Cannot kill cont|Object audit|consider using the|already in this config|xconsole|CRON|multipathd|BIOS|ACPI|MAC|Error downloading|NetworkManager|INFO|ing AMQP connection|trailing slashes|wget:|root.log|Installation finished|PROPERTY NAME|INVALID|errors[:=]0|udevd|crm_element_value:|__add_xml_object:|Could not load host|MemoryDenyWriteExecute|D-Bus connection|find remote ref|eprecate|blob unknown|WARN|error None|[Ww]arning:|Dependency.*has failures|Err(no)? (http|2|11[13]|104)|scss\.|DEBUG|password check failed|Failed password for|Broken pipe|Traceback|etlink|server gave HTTP response to HTTPS client|fatal_exception_format_errors|Unexpected end of command stream|authentication failure|0 fail|Unknown lvalue|info:|debug:|docker-storage-setup|JSchException|ERROR\s.*File.*line"
 rfc3339="\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}(\.[0-9]{6})?(\+\d{2}\:\d{2})?"
 rfc3164="\w{3}\s+?\d{1,2}\s\d{2}:\d{2}:\d{2}"
 py="\d{4}\-\d{2}\-\d{2}\s\d{2}\:\d{2}\:\d{2}([,\.]\d{3,6})?"
@@ -36,8 +35,8 @@ usage(){
     -rfc3339 - use only rfc3339 parser (-py
              plus 3339 will match by default)
     -rfc3164 - use only rfc3164 parser
-    (-s) x - search for x
-           default search is: ${search_for}
+    (-s) x - search for x instead of the
+           default search: ${search_for}
     -x y - add y to exclude from search list
            default exclude list is: ${drop}
 EOF
@@ -54,9 +53,9 @@ while (( $# )); do
     '-2') generic=1; p2=0 ;;
     '-f') shift; pf="${1}" ;;
     '-t') shift; pt="${1}" ;;
-    '-rfc3339') shift; ts="${rfc3339}"; tabs=31 ;;
-    '-rfc3164') shift; ts="${rfc3164}"; tabs=15 ;;
-    '-py') shift; ts="${py}"; tabs=23 ;;
+    '-rfc3339') ts="${rfc3339}"; tabs=31 ;;
+    '-rfc3164') ts="${rfc3164}"; tabs=15 ;;
+    '-py') ts="${py}"; tabs=23 ;;
     '-x') shift; drop="${drop}|${1}" ;;
     '-s') shift; search_for="${1}" ;;
     *) search_for="${1}" ;;
