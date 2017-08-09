@@ -1,64 +1,65 @@
 #!/bin/bash
-# Source https://git.openstack.org/cgit/openstack-infra/tripleo-ci/tree/scripts/getthelogs
-set -eu
+# Helper script for downloading tripleo-ci logs
+#
+# Example:
+# getlogs.sh http://logs.openstack.org/00/489900/4/check/gate-tripleo-ci-centos-7-nonha-multinode-updates-nv/d680401
 
-ASK=${ASK:-yes}
-ALL=no
-BASEURL=$1
-SC=$(dirname $1 | grep -o \/ | wc -w)
-[[ $BASEURL =~ \/logs && SC -ge 5 ]] || BASEURL=${BASEURL}/logs
-TDIR=${BASEURL##*http://}
-TDIR=/tmp/ci-${TDIR}
-
-mkdir -p ${TDIR}
-cd ${TDIR}
-
-echo $BASEURL > BASEURL
-
-function _getfile(){
-    URL=$1
-    BASENAME=$(basename $1)
-
-    if [[ $BASENAME =~ .*(\.tar|\.gz?|\.html).* && ! -e $BASENAME ]] ; then
-        [ "$ASK" = "yes" -a "$ALL" != "yes" ] && read -p "Want $BASENAME? (Y/n/a/q):" X
-        X=${X:-y}
-        case $X in
-        y|a)
-            echo "Getting $BASENAME"
-            curl -sO ${URL} || curl -sO ${URL}.gz
-            if [[ $BASENAME =~ .*(\.tar).* ]] ; then
-                mkdir ${BASENAME}_
-                tar -xf $BASENAME -C ${BASENAME}_ &
-            fi
-            [ "$X" = "a" ] && ALL=yes
-            continue
-            ;;
-        n) ;;
-        q) exit 0 ;;
-        *) ;;
-        esac
-    fi
-}
+set -eu -o pipefail
 
 function finish(){
-    export FILES
-    export ASK
-    export -f getthelogs _getfile
-    trap - EXIT
-    PS1="JOBLOGS ]\$  " bash --noprofile --norc
-    exit
+  rc=${rc:-$?}
+  trap - EXIT
+  cd $TDIR
+  echo "Download job exited ${rc}"
+  PS1="JOBLOGS ]\$  " bash --noprofile --norc
 }
 
-FILES="$BASEURL/../console.html $BASEURL/undercloud/home/jenkins/failed_deployment_list.log.txt.gz"
-for FILE in $(curl -s $BASEURL/ 2> /dev/null | grep href | sed -e 's/.*href="\([^"]*\)".*/\1/g' ) ; do
-    FILES="$FILES $BASEURL/$FILE"
+function get_dirs(){
+  local drop="\b(etc|ara|ara_oooq|docs|build|stackviz|sudoers.d|lib|config-data|extra)\b"
+  local directories=""
+  directories=$(curl -s "$1" 2> /dev/null | grep -E "\[DIR" | grep -vE "${drop}" | sed -e "s,.*href=\"\([^\"]*\)\".*,${1}\1,g")
+  if [ -n "$directories" ]; then
+    for d in $directories; do
+      directories="$directories $(get_dirs $d/)"
+    done
+    echo $directories
+  else
+    echo ""
+  fi
+  return 0
+}
+
+trap finish EXIT SIGINT SIGTERM
+
+BASEURL=$1
+SC=$(dirname $1 | grep -o \/ | wc -w)
+if [[ ! $BASEURL =~ \/logs && SC -ge 5 ]]; then
+  console=''
+else
+  console=$BASEURL/console.html
+  BASEURL=${BASEURL}/logs
+fi
+TDIR=${BASEURL##*http://}
+TDIR=/tmp/${TDIR}
+mkdir -p $TDIR
+cd /tmp
+
+echo "Target dir for download: $TDIR"
+echo Will download logs from the following URLs:
+list_to_get="$console $(get_dirs $BASEURL/)"
+for d in $list_to_get; do
+  echo $d
 done
 
-function getthelogs(){
-    for FILE in ${FILES}; do
-        _getfile $FILE
-    done
-}
+rm -f wget-jobs.txt
+for d in $list_to_get; do
+  cmd="wget -nc --no-use-server-timestamps \
+  --accept-regex='\.txt\.gz$|console\.htm[l]?$' \
+  --reject='index.html*' --reject='*.cfg*' --reject='*.sh*' \
+  --recursive -l 10 --domains logs.openstack.org --no-parent \
+  -erobots=off --wait 0.25 ${d}"
+  echo "${cmd}" >> wget-jobs.txt
+done
 
-[ "${1:-' '}" ] && trap finish EXIT SIGINT SIGTERM
-getthelogs
+cat wget-jobs.txt | sed -n '{p;p}' | shuf > wget-jobs-shuf.txt
+parallel -j6 -- "$(cat wget-jobs-shuf.txt)"

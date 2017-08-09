@@ -61,37 +61,23 @@ $ ./fuel-log-parse.sh -n "node[0-9]+" -py
 
 ## Examples for Tripleo CI (OpenStack infra) logs
 
-There is a [getthelogs](https://github.com/openstack-infra/tripleo-ci/blob/master/scripts/getthelogs)
-tool for OOO CI. It can be used to fetch some logs.
-Note, nested directories won't be auto downloaded.
+There is a `getthelogs` tool for downloading Tripleo CI jobs' logs.
+It recursively fetches the most important logfiles, like those from the
+`undercloud/home/jenkins`, `/var/log`, `/subnode-*/var/log`,
+  `overcloud*/var/log` locations, and the `console.html` file.
+
+Example:
 ```
-$ export ASK=no
-$ export ENTER=no
-$
-# Get generic logfiles from the subnode-1
-$ getthelogs http://logs.openstack.org/43/448543/3/check/gate-tripleo-ci-centos-7-nonha-multinode-oooq/9ece507/logs/subnode-1/var/log
-$
-# Get jenkins logs from tasks ran at the subnode-1
-$ getthelogs http://logs.openstack.org/43/448543/3/check/gate-tripleo-ci-centos-7-nonha-multinode-oooq/9ece507/logs/subnode-1/home/jenkins/
-$
-# Get what we have from the node-2
-$ getthelogs http://logs.openstack.org/43/448543/3/check/gate-tripleo-ci-centos-7-nonha-multinode-oooq/9ece507/logs/subnode-2
-$
-# Get undercloud Heat logs
-$ getthelogs http://logs.openstack.org/43/448543/3/check/gate-tripleo-ci-centos-7-nonha-multinode-oooq/9ece507/logs/undercloud/var/log/heat/
-$
-# Get all logs from the CI job done by OOOQ (TripleO QuickStart)
-$ getthelogs http://logs.openstack.org/43/448543/3/check/gate-tripleo-ci-centos-7-nonha-multinode-oooq/9ece507/logs/undercloud/home/jenkins/
-$
-$ cd ~/tmp/ci-logs.openstack.org/43/448543/3/check/gate-tripleo-ci-centos-7-nonha-multinode-oooq/9ece507/
+$ getthelogs http://logs.openstack.org/43/448543/3/check/gate-tripleo-ci-centos-7-nonha-multinode-oooq/9ece507
 $
 # Show only errors on subnodes (rfc3164)
 $ fuel-log-parse -n ".*subnode.*" -rfc3164
 $
 # Show names of executed ansible tasks and generic errors in the py/rfc3339/3164 formatted logs
 # Also drop unrelated CI infra and ansible "test -f" messages
-$ fuel-log-parse -x "find remote ref|Unexpected end of command stream|test" -n ".*"
-$ fuel-log-parse -x "find remote ref|Unexpected end of command stream|test" -n ".*" -rfc3164
+$ X="find remote ref|Unexpected end of command stream|test|authentication failure|0 fail|Unknown lvalue|DEBUG"
+$ fuel-log-parse -x "$X" -n ".*"
+$ fuel-log-parse -x "$X" -n ".*" -rfc3164
 ```
 Note, it can't sort rfc3164 (Mar 22 13:34:08) time among with py/rfc3339 format. Yet.
 
