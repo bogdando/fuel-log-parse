@@ -46,6 +46,7 @@ usage(){
               to be likely non-faily, which is
               build_status > 50% SUCCESS
               reported by elastic-recheck-query
+    -xoff - disable the default/echeck drop lists
 EOF
 }
 
@@ -65,6 +66,7 @@ while (( $# )); do
     '-py') ts="${py}"; tabs=23 ;;
     '-x') shift; drop="${drop}|${1}" ;;
     '-echeck') drop="${drop}|${echeck_verified_ignore}" ;;
+    '-xoff') drop="dropabsolutelynothing" ;;
     '-s') shift; search_for="${1}" ;;
     *) search_for="${1}" ;;
   esac
