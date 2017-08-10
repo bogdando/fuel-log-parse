@@ -11,8 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# NOTE: \d+\sERROR\s[\w\.]+\s+($|[^\[) matches python traceback lines and dropped.
 search_for="\s\b(E[rR]{2}:?|alert|crit|fatal|MODULAR|HANDLER|TASK|PLAY|Unexpected|FAIL|[Ff]ail|denied|non-zero|[Tt]ime[d\s]?out|UNCAUGHT|EXCEPTION|Unknown|[Aa]ssertion|in use)"
-drop="skipping:|No such (cont|image)|Cannot kill cont|Object audit|consider using the|already in this config|xconsole|CRON|multipathd|BIOS|ACPI|MAC|Error downloading|NetworkManager|INFO|ing AMQP connection|trailing slashes|wget:|root.log|Installation finished|PROPERTY NAME|INVALID|errors[:=]0|udevd|crm_element_value:|__add_xml_object:|Could not load host|MemoryDenyWriteExecute|D-Bus connection|find remote ref|eprecate|blob unknown|WARN|error None|[Ww]arning:|Dependency.*has failures|Err(no)? (http|2|11[13]|104)|scss\.|DEBUG|password check failed|Failed password for|Broken pipe|Traceback|etlink|server gave HTTP response to HTTPS client|fatal_exception_format_errors|Unexpected end of command stream|authentication failure|0 fail|Unknown lvalue|info:|debug:|docker-storage-setup|JSchException|ERROR\s.*File.*line"
+drop="skipping:|No such (cont|image)|Cannot kill cont|Object audit|consider using the|already in this config|xconsole|CRON|multipathd|BIOS|ACPI|acpi|MAC|Error downloading|NetworkManager|INFO|ing AMQP connection|trailing slashes|wget:|root.log|Installation finished|PROPERTY NAME|INVALID|errors[:=]0|udevd|crm_element_value:|__add_xml_object:|Could not load host|MemoryDenyWriteExecute|D-Bus connection|find remote ref|eprecate|blob unknown|WARN|error None|[Ww]arning:|has failures|Err(no)? (http|2|11[13]|104)|scss\.|DEBUG|password check failed|Failed password for|Traceback|etlink|server gave HTTP response to HTTPS client|fatal_exception_format_errors|Unexpected end of command stream|authentication failure|0 fail|info:|debug:|docker-storage-setup|JSchException|\d+\sERROR\s[\w\.]+\s+($|[^\[])"
+echeck_verified_ignore="Error connecting to cluster|socket failed to listen on sockets: Address already in use|Failed to listen on Erlang|Unknown lvalue|Broken pipe|virConnectOpenReadOnly failed|read-function of plugin|libvirt: XML-RPC error|MessagingTimeout: Timed out waiting for a reply|object has no attribute|Compute host centos"
+
 rfc3339="\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}(\.[0-9]{6})?(\+\d{2}\:\d{2})?"
 rfc3164="\w{3}\s+?\d{1,2}\s\d{2}:\d{2}:\d{2}"
 py="\d{4}\-\d{2}\-\d{2}\s\d{2}\:\d{2}\:\d{2}([,\.]\d{3,6})?"
@@ -39,6 +42,10 @@ usage(){
            default search: ${search_for}
     -x y - add y to exclude from search list
            default exclude list is: ${drop}
+    -echeck - also exclude patterns proved
+              to be likely non-faily, which is
+              build_status > 50% SUCCESS
+              reported by elastic-recheck-query
 EOF
 }
 
@@ -57,6 +64,7 @@ while (( $# )); do
     '-rfc3164') ts="${rfc3164}"; tabs=15 ;;
     '-py') ts="${py}"; tabs=23 ;;
     '-x') shift; drop="${drop}|${1}" ;;
+    '-echeck') drop="${drop}|${echeck_verified_ignore}" ;;
     '-s') shift; search_for="${1}" ;;
     *) search_for="${1}" ;;
   esac
@@ -74,7 +82,7 @@ trap 'rm -f ${out} ${out2}' EXIT INT HUP
 
 # nailgun python things
 [[ $p1 -eq 0 ]] && (grep -HEr "${search_for}" .| perl -p -e "s/\S[^-]*^([^\ T]+)\s/\1T/" |\
-  perl -n -e "m/(?<file>\S+)(\.log)?\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%28s%1s\n\",\"$+{time} \",\"$+{file} \",\"$+{rest}\")" | egrep -v "${drop}" | sort > "${out}")
+  perl -n -e "m/(?<file>\S+)(\.log)?\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%28s%1s\n\",\"$+{time} \",\"$+{file} \",\"$+{rest}\")" | grep -vP "${drop}" | sort > "${out}")
 
 # atop stuff (TODO rework with perl)
 [[ $p2 -eq 0 ]] && (echo "Date Time Node Running(sec) PID Exit_code PPID filename PRG_headers_as_is" && grep -HEr "${search_for}" . |\
@@ -83,7 +91,7 @@ trap 'rm -f ${out} ${out2}' EXIT INT HUP
 
 # generic stuff from logs snapshot /var/log/remote/*
 [[ $generic -eq 0 ]] && (grep -HEIr "${search_for}" . |\
-  perl -n -e "m/(?<node>${nodemask})(\.\S+)?\/(?<file>\S+)(\.log)?\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%22s%28s%1s\n\",\"$+{time} \",\"$+{node} \",\"$+{file} \",\"$+{rest}\")" | egrep -v "${drop}" | sort > "${out}")
+  perl -n -e "m/(?<node>${nodemask})(\.\S+)?\/(?<file>\S+)(\.log)?\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%22s%28s%1s\n\",\"$+{time} \",\"$+{node} \",\"$+{file} \",\"$+{rest}\")" | grep -vP "${drop}" | sort > "${out}")
 
 # apply from / to
 if [[ "${pf}" ]]; then

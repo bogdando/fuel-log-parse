@@ -81,6 +81,20 @@ $ fuel-log-parse -x "$X" -n ".*" -rfc3164
 ```
 Note, it can't sort rfc3164 (Mar 22 13:34:08) time among with py/rfc3339 format. Yet.
 
+# OpenStack Elastic-Recheck verified patterns
+
+There is a list of known/proved to be faily elastic-recheck query
+[patterns](https://git.openstack.org/cgit/openstack-infra/elastic-recheck/tree/queries).
+A pattern  is considered faily, when the `elastic-recheck-query` check shows
+`build_status` > 80% FAILURE for it. F.e. the 'Permission denied' pattern is a highly
+faily (87% FAILURE).
+
+Instead, a non faily pattern would show more than a 50% SUCCESS rate or ~50/50. Like a
+notorious "MessagingTimeout: Timed out waiting for a reply" message. Those non faily
+patterns are collected under the script's `echeck_verified_ignore` var. And can be
+runtime filtered out from search results with the command line argument `-echeck`.
+Note, those will be *added* to the default list of dropped patterns.
+
 # ES searcher script for OpenStack
 
 Additionally, there is a simple ES searcher script. It expects log
