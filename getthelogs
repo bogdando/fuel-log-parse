@@ -9,7 +9,7 @@ set -eu -o pipefail
 function finish(){
   rc=${rc:-$?}
   trap - EXIT
-  cd $TDIR
+  cd $TDIR/../
   echo "Download job exited ${rc}"
   PS1="JOBLOGS ]\$  " bash --noprofile --norc
 }
