@@ -17,7 +17,7 @@ drop="Skipping because of failed dependencies|skipping:|No such (cont|image)|Can
 echeck_verified_ignore="Error connecting to cluster|socket failed to listen on sockets|socket entered failed state|Failed to listen on Erlang|Unknown lvalue|Broken pipe|virConnectOpenReadOnly failed|read-function of plugin|libvirt: XML-RPC error|MessagingTimeout: Timed out waiting for a reply|object has no attribute|Compute host centos|Could not open logfile|Ignoring these errors is likely to lead to a failed deploy|Connection reset by peer|Failed none for invalid user"
 
 # a relaxed timestamp format, matching the mutated forms, like .py provides
-rfc3339="\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}(\.[0-9]{3,6}Z?)?(\+\d{2}\:\d{2})?"
+rfc3339="\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}(\.[0-9]{3,9}Z?)?(\+\d{2}\:\d{2})?"
 rfc3164="\w{3}\s+?\d{1,2}\s\d{2}:\d{2}:\d{2}"
 ts="${rfc3339}"
 tabs=31
@@ -28,8 +28,8 @@ nodemask="node\-[0-9]+"
 py_to_rfc3339='s/(\d{4}\-\d{2}\-\d{2})\s(\d{2}.*)$/\1T\2/'
 # decode epoch from avc events into rfc3164 format
 avc_to_rfc3164='s/^(.*):(type=AVC msg=audit\((\S+)\..*)$// && print("$1:",join(" ",(split(" ",scalar(localtime($3))))[1..3])," $2")'
-# make journald records with rfc3164 sortable alongside generic rfc3339 timestamps
-journald_rfc3164_to_rfc3339='' #TBD
+# translate some of the messages, journald/docker and other events logged with rfc3164 into rfc3339
+rfc3164_to_rfc3339='s/^(\S+:)(\w{3}\s+?\d{1,2}\s\d{2}:\d{2}:\d{2})(.*time="(\S+)".*)$/\1\4 \3/'
 
 usage(){
   cat << EOF
@@ -96,6 +96,7 @@ trap 'rm -f ${out} ${out2}' EXIT INT HUP
 [[ $generic -eq 0 ]] && (grep -HEIr "${search_for}" . |\
   perl -pe "${py_to_rfc3339}" |\
   perl -pe "${avc_to_rfc3164}" |\
+  perl -pe "${rfc3164_to_rfc3339}" |\
   perl -n -e "m/(?<node>${nodemask})(\.\S+)?\/(?<file>\S+)(\.log)?\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%22s%28s%1s\n\",\"$+{time} \",\"$+{node} \",\"$+{file} \",\"$+{rest}\")" | grep -vP "${drop}" | sort > "${out}")
 
 # apply from / to

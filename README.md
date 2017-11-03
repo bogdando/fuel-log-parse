@@ -71,27 +71,33 @@ $ ./fuel-log-parse.sh -n "node[0-9]+"
 
 ## Examples for Tripleo CI (OpenStack infra) logs
 
-There is a `getthelogs` tool for downloading Tripleo CI jobs' logs.
+There is a
+[getthelogs](https://git.openstack.org/cgit/openstack-infra/tripleo-ci/tree/scripts/getthelogs)
+tool for downloading Tripleo CI jobs' logs.
 It recursively fetches the most important logfiles, like those from the
 `undercloud/home/jenkins`, `/var/log`, `/subnode-*/var/log`,
-  `overcloud*/var/log` locations, and the `console.html` file.
+`overcloud*/var/log` locations, and the `console.html` file (zuul v2), and it
+works with zuul v3 also.
 
-Example:
+Example that shows only errors (rfc3164 formatted only, plus
+avc events decoded by mutators):
 ```
 $ getthelogs http://logs.openstack.org/43/448543/3/check/gate-tripleo-ci-centos-7-nonha-multinode-oooq/9ece507
-$
-# Show only errors on subnodes (rfc3164)
-$ fuel-log-parse -n ".*subnode.*" -rfc3164
-$
-# Show names of executed ansible tasks and generic errors in the py/rfc3339/3164 formatted logs
-# Also drop unrelated CI infra noise and ansible "test -f" messages
+$ fuel-log-parse -n ".*" -rfc3164
+```
+Note that avc events have no node info provided, but there is a log file path
+given at very least. Use `-rfc3164` to see avc events decoded, this mutator doesn't
+work with default `-rfc3339`.
+
+Another example shows names of executed ansible tasks and generic errors for the mutatable py/rfc3339/3164
+formatted logs. It also drops some unrelated CI infra noise and ansible "test -f" messages:
+```
 $ export X="test|session|secure"
 $ fuel-log-parse -x "$X" -n ".*"
-$ fuel-log-parse -x "$X" -n ".*" -rfc3164
 ```
-Note, it can't sort rfc3164 (Mar 22 13:34:08) time among with py/rfc3339 format. Yet.
-A mutator translating journald rfc3164 time stamps to the msg-contained rfc3339
-TBD.
+Note, it can't sort rfc3164 (Mar 22 13:34:08) time among with py/rfc3339 format.
+But there is a mutator translating some of the rfc3164 logged events of
+`/var/log/messages`, journald, docker and other events containing `time="<rfc3339>"` data.
 
 # OpenStack Elastic-Recheck verified patterns
 
