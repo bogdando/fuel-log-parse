@@ -91,8 +91,9 @@ trap 'rm -f ${out} ${out2}' EXIT INT HUP
   awk -v n=$nodemask --posix "match($0, /[0-9]{4}\/[0-9]{2}\/[0-9]{2} [0-9]{2}\:[0-9]{2}\:[0-9]{2}/, m) match($0, /$n/, n) {if (m[0] && n[0]) print m[0],n[0],$3-$15,$7,$14,$(NF-11),$0}" |\
   sort | column -t > "${out}")
 
-# generic stuff from logs snapshot /var/log/remote/*
+# generic stuff from logs snapshot /var/log/remote/* with decoded audit AVC timestamps, if any
 [[ $generic -eq 0 ]] && (grep -HEIr "${search_for}" . |\
+  perl -pe 's/^(.*):(type=AVC msg=audit\((\S+)\..*)$// && print("$1:",join(" ",(split(" ",scalar(localtime($3))))[1..3])," N/A $2")' |\
   perl -n -e "m/(?<node>${nodemask})(\.\S+)?\/(?<file>\S+)(\.log)?\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%22s%28s%1s\n\",\"$+{time} \",\"$+{node} \",\"$+{file} \",\"$+{rest}\")" | grep -vP "${drop}" | sort > "${out}")
 
 # apply from / to
