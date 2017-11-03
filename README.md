@@ -6,8 +6,8 @@ aggregation servers' `/var/log/node-{foo,bar,baz}` directories, or the
 like. Logged events are normally processed as the following:
 
  * filtered (grep -HEir) from '.' sources, like directories representing nodes;
- * then magic mutators applied, like decoding avc timestamps, or transforming
-   python timestamps into rfc33390 like format;
+ * then magic mutators applied, like decoding avc timestamps into rfc3164, or
+   transforming python timestamps into rfc3339 looking-like format;
  * then sorted by its timestamps (rfc3164 or rfc3339-ish),
  * finally, a from/to ranges applied, if requested.
 
@@ -55,7 +55,8 @@ $ ./fuel-log-parsh.sh -x "foo-component|bar-component"
 
 Collect errors from logs collected by generic ansible
 playbooks based on the fetch module. Search using a given
-nodes naming pattern and expecting RFC3164 timestamps.
+nodes naming pattern and expecting RFC3164 timestamps. Also,
+translate "bad" avc audit events' epoch into timestamps.
 
 ```
 $ ./fuel-log-parsh.sh -n "node[0-9]+" -rfc3164
