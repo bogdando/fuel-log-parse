@@ -1,16 +1,25 @@
-# fuel-log-parse
+# Just a logs parser with grep and perl
 
-A tool to parse fuel or generic logs collected via diagnostic
-tools or live, being run at the central log server node's
-`/var/log/foo` directory. Events normally are collected
-across all nodes/pods and sorted by its timestamps. There is
-also a simple tool to query elasticsearch indexes for events.
+A tool to parse (for events) generic logs (originally Fuel for OpenStack logs)
+collected via diagnostic tools, or stored live on servers, or stored at logs
+aggregation servers' `/var/log/node-{foo,bar,baz}` directories, or the
+like. Logged events are normally processed as the following:
+
+ * filtered (grep -HEir) from '.' sources, like directories representing nodes;
+ * then magic mutators applied, like decoding avc timestamps, or transforming
+   python timestamps into rfc33390 like format;
+ * then sorted by its timestamps (rfc3164 or rfc3339-ish),
+ * finally, a from/to ranges applied, if requested.
 
 Use `-h` key to get some help.
 
+## Odd modes for odd things
+
+There is also a simple tool to query elasticsearch indexes for events.
+
 Note, that the key `-2` should not be used with other keys as
 it is a separate parser for atop log entries collected with
-the `atop -PPRG -r <...>` command
+the `atop -PPRG -r <...>` command.
 
 ## Examples
 
@@ -52,11 +61,11 @@ nodes naming pattern and expecting RFC3164 timestamps.
 $ ./fuel-log-parsh.sh -n "node[0-9]+" -rfc3164
 ```
 
-Parse ansible logs for main events and expecting a generic
+Parse also ansible logs for main events and expecting a generic
 Python-like timestamps.
 
 ```
-$ ./fuel-log-parse.sh -n "node[0-9]+" -py
+$ ./fuel-log-parse.sh -n "node[0-9]+"
 ```
 
 ## Examples for Tripleo CI (OpenStack infra) logs
@@ -80,6 +89,8 @@ $ fuel-log-parse -x "$X" -n ".*"
 $ fuel-log-parse -x "$X" -n ".*" -rfc3164
 ```
 Note, it can't sort rfc3164 (Mar 22 13:34:08) time among with py/rfc3339 format. Yet.
+A mutator translating journald rfc3164 time stamps to the msg-contained rfc3339
+TBD.
 
 # OpenStack Elastic-Recheck verified patterns
 
@@ -139,4 +150,3 @@ The default search pattern is a regex ``/error|alert|trace.*|crit.*|fatal/``:
 ```
 ESIP=$esip SIZE=5000 k8s_es_search.sh
 ```
-
