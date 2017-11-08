@@ -13,7 +13,9 @@
 
 # NOTE: \d+\sERROR\s[\w\.]+\s+($|[^\[) matches python traceback lines and dropped.
 search_for="\s\b(E[rR]{2}:?|alert|crit|fatal|MODULAR|HANDLER|TASK|PLAY|Unexpected|FAIL|[Ff]ail|denied|non-zero|[Tt]imed?\s?out|UNCAUGHT|EXCEPTION|Unknown|[Aa]ssertion|in use)"
+
 drop="Skipping because of failed dependencies|skipping:|No such (cont|image)|Cannot kill cont|Object audit|consider using the|already in this config|xconsole|CRON|multipathd|BIOS|ACPI|acpi|MAC|Error downloading|NetworkManager|ing AMQP connection|trailing slashes|wget:|root.log|Installation finished|PROPERTY NAME|INVALID|errors[:=]0|udevd|crm_element_value:|__add_xml_object:|Could not load host|MemoryDenyWriteExecute|D-Bus connection|find remote ref|eprecate|blob unknown|WARN|error None|[Ww]arning:|has failures|scss\.|DEBUG|password check failed|Failed password for|Traceback|etlink|server gave HTTP response to HTTPS client|fatal_exception_format_errors|Unexpected end of command stream|authentication failure|0 fail|[Ii]nfo:|[Dd]ebug:|[Nn]otice:|[Dd]ocker[-\s][Ss]torage|pcspkr|JSchException|conversation failed|\d+\sERROR\s[\w\.]+\s+($|[^\[])|reverse mapping checking|augenrules.*failure|timeout(\s+)?=|fail\S+?(\s+)?="
+
 echeck_verified_ignore="Error connecting to cluster|socket failed to listen on sockets|socket entered failed state|Failed to listen on Erlang|Unknown lvalue|Broken pipe|virConnectOpenReadOnly failed|read-function of plugin|libvirt: XML-RPC error|MessagingTimeout: Timed out waiting for a reply|object has no attribute|Compute host centos|Could not open logfile|Ignoring these errors is likely to lead to a failed deploy|Connection reset by peer|Failed none for invalid user|keytab is nonexistent|Unable to process extensions|NOT_FOUND.*vhost|Failed to add dependency on|avc.*object\.recon|Unhandled error: OperationalError|ComputeHostNotFound_Remote|[Gg]lean|Failed to canonicalize path|Failure! The validation failed|test has failed as expected|Task '.*requirements' failed"
 
 # a relaxed timestamp format, matching the mutated forms, like .py provides
@@ -38,8 +40,6 @@ usage(){
     -n x - give a custom node names mask
            default is: ${nodemask}. Use '.*'
            to match arbitrary sources/files
-    -d - use fuel orchestration events parser
-    -2 - use atop formatted events parser
     -f x - cut events to start from value x
     -t x - cut events to end up to value x
     -rfc3339 - use rfc3339 parser with
@@ -58,13 +58,11 @@ EOF
 }
 
 [[ "$#" = "0" ]] && usage
-pd=1;p1=1;p2=1;pf='';pt='';fx=1;generic=0
+pf='';pt=''
 while (( $# )); do
   case "$1" in
     '-h') usage >&2; exit 0 ;;
-    '-d') generic=1; pd=0 ;;
     '-n') shift; nodemask="${1}" ;;
-    '-2') generic=1; p2=0 ;;
     '-f') shift; pf="${1}" ;;
     '-t') shift; pt="${1}" ;;
     '-rfc3339') ts="${rfc3339}"; tabs=31 ;;
@@ -84,20 +82,12 @@ out=$(mktemp /tmp/tmp.XXXXXXXXXX)
 out2=$(mktemp /tmp/tmp.XXXXXXXXXX)
 trap 'rm -f ${out} ${out2}' EXIT INT HUP
 
-# fuel orchestration
-[[ $pd -eq 0 ]] && search_for="Spent |Puppet run failed|Error running RPC|Processing RPC call|Starting OS provisioning|step.*offset"
-
-# atop stuff (TODO rework with perl)
-[[ $p2 -eq 0 ]] && (echo "Date Time Node Running(sec) PID Exit_code PPID filename PRG_headers_as_is" && grep -HEr "${search_for}" . |\
-  awk -v n=$nodemask --posix "match($0, /[0-9]{4}\/[0-9]{2}\/[0-9]{2} [0-9]{2}\:[0-9]{2}\:[0-9]{2}/, m) match($0, /$n/, n) {if (m[0] && n[0]) print m[0],n[0],$3-$15,$7,$14,$(NF-11),$0}" |\
-  sort | column -t > "${out}")
-
 # generic stuff from logs snapshot /var/log/remote/* with "mutators" applied
-[[ $generic -eq 0 ]] && (grep -HEIr "${search_for}" . |\
+grep -HEIr "${search_for}" . |\
   perl -pe "${py_to_rfc3339}" |\
   perl -pe "${avc_to_rfc3164}" |\
   perl -pe "${rfc3164_to_rfc3339}" |\
-  perl -n -e "m/(?<node>${nodemask})(\.\S+)?\/(?<file>\S+)(\.log)?\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%22s%28s%1s\n\",\"$+{time} \",\"$+{node} \",\"$+{file} \",\"$+{rest}\")" | grep -vP "${drop}" | sort > "${out}")
+  perl -n -e "m/(?<node>${nodemask})(\.\S+)?\/(?<file>\S+)(\.log)?\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%22s%28s%1s\n\",\"$+{time} \",\"$+{node} \",\"$+{file} \",\"$+{rest}\")" | grep -vP "${drop}" | sort > "${out}"
 
 # apply from / to
 if [[ "${pf}" ]]; then

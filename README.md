@@ -1,72 +1,50 @@
 # Just a logs parser with grep and perl
 
-A tool to parse (for events) generic logs (originally Fuel for OpenStack logs)
+A tool to parse generic logs (originally Fuel for OpenStack logs)
 collected via diagnostic tools, or stored live on servers, or stored at logs
 aggregation servers' `/var/log/node-{foo,bar,baz}` directories, or the
 like. Logged events are normally processed as the following:
 
- * filtered (grep -HEir) from '.' sources, like directories representing nodes;
- * then magic mutators applied, like decoding avc timestamps into rfc3164, or
-   transforming python timestamps into rfc3339 looking-like format;
+ * filtered (`grep -HEIr`) from sources living in the $pwd, like directories
+   representing nodes sending logs remotely, or just /var/log/ subdirs;
+ * then magic mutators applied, like decoding timestamps for autdit denials,
+   or transforming python-ish timestamps into rfc3339 looking-like format;
  * then sorted by its timestamps (rfc3164 or rfc3339-ish),
  * finally, a from/to ranges applied, if requested.
 
 Use `-h` key to get some help.
 
-## Odd modes for odd things
+## Examples for generic logs parsing exercises
 
-There is also a simple tool to query elasticsearch indexes for events.
-
-Note, that the key `-2` should not be used with other keys as
-it is a separate parser for atop log entries collected with
-the `atop -PPRG -r <...>` command.
-
-## Examples
-
-Get all MySQL related events across existing OpenStack nodes
-deployed by Fuel and sort the by a timestamp, and limit results
-collected from 2015-11-11T09:38:36 to 2015-11-11T09:58:25.
-
+Get all MySQL related events and sort by the timestamp, limit results
+collected from 2015-11-11T09:38:36 to 2015-11-11T09:58:25 (rfc3339):
 ```
-$ ./fuel-log-parse.sh "MySQL|sql" -f 2015-11-11T09:38:36 \
+$ ./fuel-log-parse.sh -s "MySQL|sql" -f 2015-11-11T09:38:36 \
     -t 2015-11-11T09:58:25 | less
 ```
 
-Get key deployment orchestration events (Fuel only)
-
-```
-$ ./fuel-log-parse.sh -d -1
-```
-
-Get all faily-like events and tracebacks from nodes AND
-Fuel components like Nailgun, keystone, orchestration astute,
-mcollective, messaging, fuel agent etc.
-
-```
-$ ./fuel-log-parse.sh -1
-```
-
-Get all faily-like events from nodes but not from the
-foo and bar components
+Get all known-to-be-faily events (hereafter, just 'errors') from all sources,
+but not from foo and bar:
 
 ```
 $ ./fuel-log-parsh.sh -x "foo-component|bar-component"
 ```
 
-Collect errors from logs collected by generic ansible
-playbooks based on the fetch module. Search using a given
-nodes naming pattern and expecting RFC3164 timestamps. Also,
-translate "bad" avc audit events' epoch into timestamps.
+Search for errors with a given source-matching pattern (applied for source
+directories' names). Looks for events logged only with rfc3164 timestamps.
+Also, translates 'avc: denied' audit events with a mutator (gives no source tags,
+like node names!):
 
 ```
 $ ./fuel-log-parsh.sh -n "node[0-9]+" -rfc3164
 ```
 
-Parse also ansible logs for main events and expecting a generic
-Python-like timestamps.
+Parse for errors from all sources and for all ansible PLAY/TASK events. Mutate
+a python-ish timestamps into something looking more rfc3339-ish (a mutator).
+Hide tracebacks:
 
 ```
-$ ./fuel-log-parse.sh -n "node[0-9]+"
+$ ./fuel-log-parse.sh -n ".*"
 ```
 
 ## Examples for Tripleo CI (OpenStack infra) logs
@@ -79,27 +57,35 @@ It recursively fetches the most important logfiles, like those from the
 `overcloud*/var/log` locations, and the `console.html` file (zuul v2), and it
 works with zuul v3 also.
 
-Example that shows only errors (rfc3164 formatted only, plus
-avc events decoded by mutators):
+Example that shows only errors, rfc3164 formatted, plus avc (audit) events
+decoded with a magic mutator:
 ```
-$ getthelogs http://logs.openstack.org/43/448543/3/check/gate-tripleo-ci-centos-7-nonha-multinode-oooq/9ece507
+$ getthelogs http://logs.openstack.org/<cryptic-stuff>/<gate-name>/<job-id-hash>
 $ fuel-log-parse -n ".*" -rfc3164
 ```
-Note that avc events have no node info provided, but there is a log file path
-given at very least. Use `-rfc3164` to see avc events decoded, this mutator doesn't
-work with default `-rfc3339`.
 
-Another example shows names of executed ansible tasks and generic errors for the mutatable py/rfc3339/3164
-formatted logs. It also drops some unrelated CI infra noise and ansible "test -f" messages:
+Note that avc events have *no source info provided*, but there is a log file
+path given at very least. Use `-rfc3164` to see avc events decoded, this
+mutator doesn't work with default `-rfc3339`.
+
+Another example hides names of executed ansible tasks, finds errors for all of
+the mutatable python-ish/rfc3339 formatted events. Another magic mutator adds
+extracted rfc3339 timestamps, if any available from events originally logged
+with rfc3164 format (just checks if there is `time="<stamp>"` in messages).
+It also drops *ugly*, **long**, multiline messages logged by ansible, heat,
+mistral and the like JSON-lovers:
 ```
-$ export X="test|session|secure"
-$ fuel-log-parse -x "$X" -n ".*"
+$ fuel-log-parse -x "TASK|PLAY|INFO|\\\"" -n ".*"
 ```
 Note, it can't sort rfc3164 (Mar 22 13:34:08) time among with py/rfc3339 format.
-But there is a mutator translating some of the rfc3164 logged events of
-`/var/log/messages`, journald, docker and other events containing `time="<rfc3339>"` data.
+Use another command to inspect with `-rfc3164`.
 
-# OpenStack Elastic-Recheck verified patterns
+Also note that those ugly multiline JSON events might be an only source for
+tricky errors hiding in, sitting in the middle of a kilometer-length message.
+Just keep that in mind, if filtering them out. You may want to come back to
+inspect them later as well.
+
+# OpenStack Elastic-Recheck verified/known patterns
 
 There is a list of known/proved to be faily elastic-recheck query
 [patterns](https://git.openstack.org/cgit/openstack-infra/elastic-recheck/tree/queries).
@@ -122,7 +108,7 @@ See also [Fuel CCP](http://fuel-ccp.readthedocs.io/en/latest/).
 
 It requires perl, curl, jq, kubectl (optional).
 
-## Examples
+## Examples of ES queries
 
 ```
 esip=$(kubectl get pods --namespace foo --selector=app=elasticsearch \
