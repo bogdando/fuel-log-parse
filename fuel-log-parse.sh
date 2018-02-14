@@ -27,7 +27,7 @@ nodemask="node\-[0-9]+"
 
 # mutators for perl -pe
 # make python logging timestamps sortable alongside generic rfc3339 timestamps
-py_to_rfc3339='s/(\d{4}\-\d{2}\-\d{2})\s(\d{2}.*)$/\1T\2/'
+py_to_rfc3339="s/(\d{4}\-\d{2}\-\d{2})\s(\d{2}.*)$/\1T\2/g"
 # decode epoch from avc events into rfc3164 format
 avc_to_rfc3164='s/^(.*):(type=AVC msg=audit\((\S+)\..*)$// && print("$1:",join(" ",(split(" ",scalar(localtime($3))))[1..3])," $2")'
 # translate some of the messages, journald/docker and other events logged with rfc3164 into rfc3339
@@ -87,17 +87,19 @@ grep -HEIr "${search_for}" . |\
   perl -pe "${py_to_rfc3339}" |\
   perl -pe "${avc_to_rfc3164}" |\
   perl -pe "${rfc3164_to_rfc3339}" |\
-  perl -n -e "m/(?<node>${nodemask})(\.\S+)?\/?(?<file>(\.\S+))?\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%22s%28s%1s\n\",\"$+{time} \",\"$+{node} \",\"$+{file} \",\"$+{rest}\")" | grep -vP "${drop}" | sort > "${out}"
+  perl -n -e "m/(?<node>${nodemask})(\.\S+)?\/?(?<file>(\.\S+))?\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%22s%28s%1s\n\",\"$+{time} \",\"$+{node} \",\"$+{file} \",\"$+{rest}\")" |\
+  grep -vP "${drop}" |\
+  sort > "${out}"
 
 # apply from / to
 if [[ "${pf}" ]]; then
   echo USE FROM $pf >&2
-  from="${pf}" perl -lne '$_=~s/^\s+//;print if ($ENV{'from'} le (split / /, $_, 1)[0])' <"${out}" >"${out2}"
+  from="${pf}" perl -lne '$_=~s/^\s+//;print if ($ENV{"from"} le (split / /, $_, 1)[0])' <"${out}" >"${out2}"
   cp -f "${out2}" "${out}"
 fi
 if [[ "${pt}" ]]; then
   echo USE TO $pt >&2
-  to="${pt}" perl -lne '$_=~s/^\s+//;print if ($ENV{'to'} ge (split / /, $_, 1)[0])' <"${out}"
+  to="${pt}" perl -lne '$_=~s/^\s+//;print if ($ENV{"to"} ge (split / /, $_, 1)[0])' <"${out}"
 else
   cat "${out}"
 fi
