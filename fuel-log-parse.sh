@@ -27,7 +27,7 @@ nodemask="node\-[0-9]+"
 
 # mutators for perl -pe
 # make python logging timestamps sortable alongside generic rfc3339 timestamps
-py_to_rfc3339="s/(\d{4}\-\d{2}\-\d{2})\s(\d{2}.*)$/\1T\2/g"
+py_to_rfc3339="s/(\d{4}\-\d{2}\-\d{2})\s(\d{2}.*)$/\1T\2/g, s/(\d{4}\-\d{2}\-\d{2}[T\s]\d{2}\:\d{2}\:\d{2}),(.*$)/\1.\2/g"
 # decode epoch from avc events into rfc3164 format
 avc_to_rfc3164='s/^(.*):(type=AVC msg=audit\((\S+)\..*)$// && print("$1:",join(" ",(split(" ",scalar(localtime($3))))[1..3])," $2")'
 # translate some of the messages, journald/docker and other events logged with rfc3164 into rfc3339
