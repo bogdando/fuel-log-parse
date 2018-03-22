@@ -20,7 +20,8 @@ echeck_verified_ignore="Error connecting to cluster|socket failed to listen on s
 
 # a relaxed timestamp format, matching the mutated forms, like .py provides
 rfc3339="\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}(\.[0-9]{3,9}Z?)?(\+\d{2}\:\d{2})?"
-rfc3164="\w{3}\s+?\d{1,2}\s\d{2}:\d{2}:\d{2}"
+# a relaxed timestamp format, like the devstack gates use: Mar 22 00:35:21.852381
+rfc3164="\w{3}\s+?\d{1,2}\s\d{2}:\d{2}:\d{2}(\.[0-9]+)?"
 ts="${rfc3339}"
 tabs=31
 nodemask="node\-[0-9]+"
