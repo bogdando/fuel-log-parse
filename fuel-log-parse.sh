@@ -12,7 +12,7 @@
 # limitations under the License.
 
 # NOTE: \d+\sERROR\s[\w\.]+\s+($|[^\[) matches python traceback lines and dropped.
-search_for="\s\b(ERR|Err|error|alert|crit|fatal|FATAL|MODULAR|HANDLER|TASK|PLAY|Unexpected|FAIL|[Ff]ail|denied|non-zero|[Tt]imed?\s?out|UNCAUGHT|EXCEPTION|[Aa]ssertion|panic)"
+search_for="\s\b(ERR|Err|error|alert|crit|fatal|FATAL|MODULAR|HANDLER|TASK|PLAY|Unexpected|Unauthorized|FAIL|[Ff]ail|denied|non-zero|[Tt]imed?\s?out|UNCAUGHT|EXCEPTION|[Aa]ssertion|panic)"
 
 drop="Skipping because of failed dependencies|skipping:|error: No such (cont|image)|Cannot kill cont|Object audit|consider using the|already in this config|xconsole|CRON|multipathd|BIOS|ACPI|acpi|MAC|Error downloading|NetworkManager|ing AMQP connection|trailing slashes|wget:|root.log|Installation finished|PROPERTY NAME|INVALID|errors[:=]0|udevd|crm_element_value:|__add_xml_object:|Could not load host|MemoryDenyWriteExecute|D-Bus connection|find remote ref|eprecate|blob unknown|error None|has failures|scss\.|DEBUG|password check failed|Failed password for|Traceback|etlink|server gave HTTP response to HTTPS client|fatal_exception_format_errors|Unexpected end of command stream|authentication failure|0 fail|[Ii]nfo:|[Dd]ebug:|[Nn]otice:|[Dd]ocker[-\s][Ss]torage|pcspkr|JSchException|conversation failed|\d+\sERROR\s[\w\.]+\s+($|[^\[])|reverse mapping checking|augenrules.*failure|timeout(\s+)?=|fail\S+?(\s+)?="
 
