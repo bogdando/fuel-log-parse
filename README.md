@@ -51,6 +51,7 @@ $ ./fuel-log-parse.sh -n ".*"
 
 There is a
 [getthelogs](https://git.openstack.org/cgit/openstack-infra/tripleo-ci/tree/scripts/getthelogs)
+(maintained locally as of now)
 tool for downloading Tripleo CI jobs' logs.
 It recursively fetches the most important logfiles, like those from the
 `undercloud/home/jenkins`, `/var/log`, `/subnode-*/var/log`,
