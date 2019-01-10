@@ -78,3 +78,5 @@ cat wget-jobs.txt | sed -n '{p;p}' | shuf > wget-jobs-shuf.txt
 # Do not fail if something is missing / cannot be downloaded
 set +e
 cat wget-jobs-shuf.txt  | xargs -r -n1 -P ${WORKERS} -I{} sh -c "wget {}"
+cd $TDIR
+find . -name "*.gz" | xargs -n1 gunzip
