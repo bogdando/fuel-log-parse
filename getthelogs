@@ -35,6 +35,21 @@ function get_dirs(){
   return 0
 }
 
+function get_compressed_dirs(){
+  local drop="\b(etc|ara|ara_oooq|docs|build|stackviz|sudoers.d|config-data|extra)\b"
+  local directories=""
+  directories=$(curl -s "$1" 2> /dev/null | zlib-flate -uncompress | grep -E '\[DIR|href=\S+\/<' | grep -vE "${drop}" | sed -e "s,.*href=[\"\']\([^\"\']*\)[\"\'].*,${1}\1,g")
+  if [ -n "$directories" ]; then
+    for d in $directories; do
+      directories="$directories $(get_compressed_dirs $d/)"
+    done
+    echo $directories
+  else
+    echo ""
+  fi
+  return 0
+}
+
 [[ "${1:--}" =~ ^\s+?- ]] && (usage; exit 1)
 type -p wget 2>&1 >/dev/null || ( echo "Please install a wget tool!"; exit 127 )
 trap finish EXIT SIGINT SIGTERM
@@ -58,7 +73,13 @@ cd /tmp
 
 echo "Target dir for download: $TDIR"
 echo Will download logs from the following URLs:
-list_to_get="$console $console_old $(get_dirs $BASEURL/)"
+curl -sI "$BASEURL/" 2> /dev/null | grep -q deflate
+ZLIB_USED=$?
+if [ ${ZLIB_USED} -eq 0 ]; then
+  list_to_get="$console $console_old $(get_compressed_dirs $BASEURL/)"
+else
+  list_to_get="$console $console_old $(get_dirs $BASEURL/)"
+fi
 for d in $list_to_get; do
   echo $d
 done
@@ -77,6 +98,10 @@ done
 cat wget-jobs.txt | sed -n '{p;p}' | shuf > wget-jobs-shuf.txt
 # Do not fail if something is missing / cannot be downloaded
 set +e
-cat wget-jobs-shuf.txt  | xargs -r -n1 -P ${WORKERS} -I{} sh -c "wget {}"
+if [ ${ZLIB_USED} -eq 0 ]; then
+  cat wget-jobs-shuf.txt  | xargs -r -n1 -P ${WORKERS} -I{} sh -c "wget {} | zlib-flate -uncompress"
+else
+  cat wget-jobs-shuf.txt  | xargs -r -n1 -P ${WORKERS} -I{} sh -c "wget {}"
+fi
 cd $TDIR
 find . -name "*.gz" | xargs -n1 gunzip
