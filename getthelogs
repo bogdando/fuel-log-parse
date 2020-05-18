@@ -14,30 +14,37 @@ function usage(){
 
 function finish(){
   rc=${rc:-$?}
+  echo Processed URLs:
+  cat $urls
+  rm -f $urls
   trap - EXIT
   cd $TDIR/../
   echo "Download job exited ${rc}"
   PS1="JOBLOGS ]\$  " bash --noprofile --norc
 }
 
-function get_dirs(){
-  local drop="\b(etc|ara|ara_oooq|docs|build|stackviz|sudoers.d|config-data|extra)\b"
-  local directories=""
-  directories=$(curl -s "$1" 2> /dev/null | grep -E '\[DIR|href=\S+\/<' | grep -vE "${drop}" | sed -e "s,.*href=[\"\']\([^\"\']*\)[\"\'].*,${1}\1,g")
-  if [ -n "$directories" ]; then
-    for d in $directories; do
-      directories="$directories $(get_dirs $d/)"
-    done
-    echo $directories
-  else
-    echo ""
-  fi
-  return 0
+function get_jobs(){
+  local drop="\b(ara|ara_oooq|docs|build|stackviz)\b"
+  local entries=$(curl -sLk "$1" 2> /dev/null | $filter | grep -E '\[DIR|href=\S+\/?<' | grep -vE "${drop}" | sed -e "s,.*href=[\"\']\([^\"\']*\)[\"\'].*,${1}\1,g")
+  [ "$entries:-" ] || return
+  IFS=$'\n'
+  set +u
+  for d in $entries; do
+    echo "Processing URLs for $d"
+    echo $d | grep -Eq '\.\.\/|\/\/$' && continue
+    if echo $d | grep -q /$; then  # list directories via recursion
+      cat $urls | grep -q "${d%*/}/ " || get_jobs "${d%*/}/"
+    elif [ "$filter" != "cat" ]; then  # if compressed, also list files
+      cat $urls | grep -q "$d " || echo "$d" >> $urls
+    fi
+  done
+  set -u
 }
 
 [[ "${1:--}" =~ ^\s+?- ]] && (usage; exit 1)
 type -p wget 2>&1 >/dev/null || ( echo "Please install a wget tool!"; exit 127 )
 trap finish EXIT SIGINT SIGTERM
+urls=$(mktemp /tmp/tmp.XXXXXXXXXX)
 
 WORKERS=6
 BASEURL=${1%/}
@@ -58,25 +65,29 @@ cd /tmp
 
 echo "Target dir for download: $TDIR"
 echo Will download logs from the following URLs:
-list_to_get="$console $console_old $(get_dirs $BASEURL/)"
-for d in $list_to_get; do
-  echo $d
-done
-
+filter="cat"
+curl -sIk "$BASEURL/" | grep -qi 'content-encoding: gzip' && filter="zcat"
+echo $console >> $urls
+echo $console_old >> $urls
+get_jobs "$BASEURL/"
 rm -f wget-jobs.txt
-for d in $list_to_get; do
+while read -r d; do
   args="\"-nv -nc --no-use-server-timestamps \
-  --accept-regex='\.txt\.gz$|messages$' \
+    --accept-regex='(\.co?nf|\.ya?ml|\.json|\.log|\.txt)(\.gz)?$|messages$' \
   --reject='index.html*' \
-  --recursive -l 10 --domains logs.openstack.org,logs.rdoproject.org \
+  --recursive -l 10 --domains logs.openstack.org,logs.rdoproject.org,storage.gra.cloud.ovh.net \
   --no-parent \
-  -erobots=off --wait 0.25 ${d}\""
-  echo "${args}" >> wget-jobs.txt
-done
+  -erobots=off --wait 0.1 ${d}\""
+  echo "$args" >> wget-jobs.txt
+done < <(cat -- $urls)
 
 cat wget-jobs.txt | sed -n '{p;p}' | shuf > wget-jobs-shuf.txt
 # Do not fail if something is missing / cannot be downloaded
 set +e
-cat wget-jobs-shuf.txt  | xargs -r -n1 -P ${WORKERS} -I{} sh -c "wget {}"
-cd $TDIR
-find . -name "*.gz" | xargs -n1 gunzip
+cat wget-jobs-shuf.txt  | xargs -r -n1 -P ${WORKERS} -I{} sh -c "wget --header='Accept-Encoding: gzip' {} | $filter"
+cd "$TDIR"
+if [ "$filter" = "cat" ]; then
+  find . -type f -name "*.gz" | xargs -r -n1 gunzip
+else
+  find . -type f -name "*.*" | xargs -r -n1 -I{} bash -c 'mv -f "{}" "{}_" && zcat "{}_" > "{}" && rm -f "{}_"'
+fi
