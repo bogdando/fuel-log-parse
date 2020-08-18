@@ -72,7 +72,7 @@ echo $console_old >> $urls
 get_jobs "$BASEURL/"
 rm -f wget-jobs.txt
 while read -r d; do
-  args="\"-nv -nc --no-use-server-timestamps \
+  args="\"-nv -nc --no-use-server-timestamps --no-check-certificate \
     --accept-regex='(\.co?nf|\.ya?ml|\.json|\.log|\.txt)(\.gz)?$|messages$' \
   --reject='index.html*' \
   --recursive -l 10 --domains logs.openstack.org,logs.rdoproject.org,storage.gra.cloud.ovh.net \
