@@ -14,9 +14,9 @@ function usage(){
 
 function finish(){
   rc=${rc:-$?}
-  echo Processed URLs:
+  echo "Processed URLs stored in $urls":
   cat $urls
-  rm -f $urls
+  #rm -f $urls
   trap - EXIT
   cd $TDIR/../
   echo "Download job exited ${rc}"
@@ -34,7 +34,7 @@ function get_jobs(){
     echo $d | grep -Eq '\.\.\/|\/\/$' && continue
     if echo $d | grep -q /$; then  # list directories via recursion
       cat $urls | grep -q "${d%*/}/ " || get_jobs "${d%*/}/"
-    elif [ "$filter" != "cat" ]; then  # if compressed, also list files
+    else  # also list files
       cat $urls | grep -q "$d " || echo "$d" >> $urls
     fi
   done
