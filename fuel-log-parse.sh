@@ -31,6 +31,8 @@ nodemask="node\-[0-9]+"
 # mutators for perl -pe
 # make python logging timestamps sortable alongside generic rfc3339 timestamps
 py_to_rfc3339="s/(\d{4}\-\d{2}\-\d{2})\s(\d{2}.*)$/\1T\2/g, s/(\d{4}\-\d{2}\-\d{2}[T\s]\d{2}\:\d{2}\:\d{2}),(.*$)/\1.\2/g"
+# mysql weirdness
+sql_to_rfc3339="s/(\d{4}\-\d{2}\-\d{2})\s{2}(\d{1}.*)$/\1T0\2/g"
 # decode epoch from avc events into rfc3164 format
 avc_to_rfc3164='s/^(.*):(type=AVC msg=audit\((\S+)\..*)$// && print("$1:",join(" ",(split(" ",scalar(localtime($3))))[1..3])," $2")'
 # translate some of the messages, journald/docker and other events logged with rfc3164 into rfc3339
@@ -88,6 +90,7 @@ trap 'rm -f ${out} ${out2}' EXIT INT HUP
 # generic stuff from logs snapshot /var/log/remote/* with "mutators" applied
 grep -HEIr "${search_for}" . |\
   perl -pe "${py_to_rfc3339}" |\
+  perl -pe "${sql_to_rfc3339}" |\
   perl -pe "${avc_to_rfc3164}" |\
   perl -pe "${rfc3164_to_rfc3339}" |\
   perl -n -e "m/(?<node>${nodemask})(\.\S+)?\/?(?<file>(\.\S+))?\:(?<time>${ts})(?<rest>.*$)/ && printf (\"%${tabs}s%22s%28s%1s\n\",\"$+{time} \",\"$+{node} \",\"$+{file} \",\"$+{rest}\")" |\
