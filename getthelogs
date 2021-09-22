@@ -22,7 +22,7 @@ function usage(){
 function finish(){
   rc=${rc:-$?}
   echo "Processed URLs stored in $urls":
-  cat $urls
+  #cat $urls
   #if [ "$RETRY_LOCAL" != "false" ]; then
     #rm -f $urls
     #rm -f /tmp/wget-jobs-shuf.txt /tmp/wget-jobs.txt
@@ -79,31 +79,32 @@ fi
 TDIR=${BASEURL##*http://}
 TDIR=${TDIR##*https://}
 TDIR=/tmp/${TDIR}
-mkdir -p $TDIR
-cd /tmp
+mkdir -p "$TDIR/logs"
+cd "$TDIR"
 
 echo "Target dir for download: $TDIR"
 echo Will download logs from the following URLs:
 filter="cat"
 curl -sIk "$BASEURL/" | grep -qi 'content-encoding: gzip' && filter="zcat"
 [ "$RETRY_LOCAL" = "false" ] &&  get_jobs "$BASEURL/"
-rm -f wget-jobs.txt
+rm -f /tmp/wget-jobs.txt
 while read -r d; do
+  mkdir -p $(dirname "logs/${d##*logs/}") ||:
   args="\"-nv -nc --no-use-server-timestamps --no-check-certificate \
     --accept-regex='(\.co?nf|\.ya?ml|\.json|\.log|\.txt)(\.gz)?$|messages$' \
   --reject='index.html*' \
   --recursive -l 10 \
   --no-parent \
-  -erobots=off --wait 0.1 ${d}\""
-  echo "$args" >> wget-jobs.txt
+  -erobots=off --wait 0.1 ${d} -o logs/${d##*logs/}\""
+  echo "$args" >> /tmp/wget-jobs.txt
 done < <(cat -- $urls)
 
-cat wget-jobs.txt | shuf > wget-jobs-shuf.txt
+cat /tmp/wget-jobs.txt | shuf > /tmp/wget-jobs-shuf.txt
 # Do not fail if something is missing / cannot be downloaded
 set +e
-cat wget-jobs-shuf.txt  | xargs -r -n1 -P ${WORKERS} -I{} sh -c "wget $ca $cert --header='Accept-Encoding: gzip' {} | $filter"
+cat /tmp/wget-jobs-shuf.txt  | xargs -r -n1 -P ${WORKERS} -I{} sh -c "wget $ca $cert --header='Accept-Encoding: gzip' {} | $filter"
 set -e
-cd "$TDIR"
+#cd "$TDIR"
 if [ "$filter" = "cat" ]; then
   find . -type f -name "*.gz" | xargs -r -n1 gunzip
 else
