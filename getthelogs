@@ -16,7 +16,9 @@ function finish(){
   rc=${rc:-$?}
   echo "Processed URLs stored in $urls":
   cat $urls
-  #rm -f $urls
+  rm -f $urls
+  rm -f /tmp/wget-jobs-shuf.txt /tmp/wget-jobs.txt
+  rm -fr "$fentries"
   trap - EXIT
   cd $TDIR/../
   echo "Download job exited ${rc}"
@@ -25,17 +27,22 @@ function finish(){
 
 function get_jobs(){
   local drop="\b(ara|ara_oooq|docs|build|stackviz)\b"
-  local entries=$(curl -sLk "$1" 2> /dev/null | $filter | grep -E '\[DIR|href=\S+\/?<' | grep -vE "${drop}" | sed -e "s,.*href=[\"\']\([^\"\']*\)[\"\'].*,${1}\1,g" | grep -v '\?')
-  [ "$entries:-" ] || return
-  IFS=$'\n'
+  local lurls=$(mktemp "$fentries/urls.XXXXXXXXXX")
+  local entries=$(mktemp "$fentries/entries.XXXXXXXXXX")
+  curl -sLk "$1" 2> /dev/null | $filter |\
+    grep -E '\[DIR|href=\S+\/?<' | grep -vE "${drop}" |\
+    sed -e "s,.*href=[\"\']\([^\"\']*\)[\"\'].*,${1}\1,g" |\
+    grep -v '\?' > $entries
+  [ $(cat $entries | wc -l) -eq 0 ] && return
+  exec 9< $entries
   set +u
-  for d in $entries; do
+  while read -r d <&9; do
     echo "Processing URLs for $d"
     echo $d | grep -Eq '\.\.\/|\/\/$' && continue
     if echo $d | grep -q /$; then  # list directories via recursion
-      cat $urls | grep -q "${d%*/}/ " || get_jobs "${d%*/}/"
+      cat $lurls | grep -q "${d%*/}/ " || get_jobs "${d%*/}/"
     else  # also list files
-      cat $urls | grep -q "$d " || echo "$d" >> $urls
+      cat $lurls | grep -q "$d " || echo "$d" >> $lurls
     fi
   done
   set -u
@@ -44,7 +51,8 @@ function get_jobs(){
 [[ "${1:--}" =~ ^\s+?- ]] && (usage; exit 1)
 type -p wget 2>&1 >/dev/null || ( echo "Please install a wget tool!"; exit 127 )
 trap finish EXIT SIGINT SIGTERM
-urls=$(mktemp /tmp/tmp.XXXXXXXXXX)
+urls=$(mktemp -t tmp.XXXXXXXXXX)
+fentries=$(mktemp -d -t entries-XXXXXXXXXX)
 
 WORKERS=6
 BASEURL=${1%/}
