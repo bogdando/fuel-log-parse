@@ -2,6 +2,11 @@
 # Source http://git.openstack.org/cgit/openstack-infra/tripleo-ci/tree/scripts/getthelogs
 # but the source is no longer maintainer or cared about
 set -eu -o pipefail
+ca=${2:-}
+cert=${3:-}
+
+[ -n "$ca" ] && ca="--ca-directory=$ca"
+[ -n "$cert" ] && cert="--certificate=$cert"
 
 function usage(){
   echo "Helper script for downloading tripleo-ci jobs logs"
@@ -31,12 +36,10 @@ function get_jobs(){
   local entries=$(mktemp "$fentries/entries.XXXXXXXXXX")
   curl -sLk "$1" 2> /dev/null | $filter |\
     grep -E '\[DIR|href=\S+\/?<' | grep -vE "${drop}" |\
-    sed -e "s,.*href=[\"\']\([^\"\']*\)[\"\'].*,${1}\1,g" |\
-    grep -v '\?' > $entries
+    sed -e "s,.*href=[\"\']\([^\"\']*\)[\"\'].*,${1}\1,g" > $entries
   [ $(cat $entries | wc -l) -eq 0 ] && return
-  exec 9< $entries
   set +u
-  while read -r d <&9; do
+  while read -r d; do
     echo "Processing URLs for $d"
     echo $d | grep -Eq '\.\.\/|\/\/$' && continue
     if echo $d | grep -q /$; then  # list directories via recursion
@@ -44,7 +47,7 @@ function get_jobs(){
     else  # also list files
       cat $lurls | grep -q "$d " || echo "$d" >> $lurls
     fi
-  done
+  done < <(cat -- $entries)
   set -u
 }
 
@@ -57,14 +60,11 @@ fentries=$(mktemp -d -t entries-XXXXXXXXXX)
 WORKERS=6
 BASEURL=${1%/}
 SC=$(dirname $BASEURL | grep -o \/ | wc -w)
-if [[ $BASEURL =~ 'logs.rdoproject' && SC -le 9 ]] ||\
-   [[ $BASEURL =~ 'logs.rdoproject.org/openstack-periodic' && SC -le 5 ]]; then
+if [ SC -le 9  -o  SC -le 5 ]; then
   BASEURL=${BASEURL}/logs
 elif [[ ! $(basename $BASEURL) == 'logs' && SC -le 7 ]]; then
   BASEURL=${BASEURL}/logs
 fi
-console="$BASEURL/job-output.txt.gz"
-console_old="$BASEURL/console.txt.gz"
 TDIR=${BASEURL##*http://}
 TDIR=${TDIR##*https://}
 TDIR=/tmp/${TDIR}
@@ -75,8 +75,6 @@ echo "Target dir for download: $TDIR"
 echo Will download logs from the following URLs:
 filter="cat"
 curl -sIk "$BASEURL/" | grep -qi 'content-encoding: gzip' && filter="zcat"
-echo $console >> $urls
-echo $console_old >> $urls
 get_jobs "$BASEURL/"
 rm -f wget-jobs.txt
 while read -r d; do
@@ -89,10 +87,11 @@ while read -r d; do
   echo "$args" >> wget-jobs.txt
 done < <(cat -- $urls)
 
-cat wget-jobs.txt | sed -n '{p;p}' | shuf > wget-jobs-shuf.txt
+cat wget-jobs.txt | shuf > wget-jobs-shuf.txt
 # Do not fail if something is missing / cannot be downloaded
 set +e
-cat wget-jobs-shuf.txt  | xargs -r -n1 -P ${WORKERS} -I{} sh -c "wget --header='Accept-Encoding: gzip' {} | $filter"
+cat wget-jobs-shuf.txt  | xargs -r -n1 -P ${WORKERS} -I{} sh -c "wget $ca $cert --header='Accept-Encoding: gzip' {} | $filter"
+set -e
 cd "$TDIR"
 if [ "$filter" = "cat" ]; then
   find . -type f -name "*.gz" | xargs -r -n1 gunzip
