@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -xxx
 # Source http://git.openstack.org/cgit/openstack-infra/tripleo-ci/tree/scripts/getthelogs
 # but the source is no longer maintainer or cared about
 RETRY_LOCAL=${RETRY_LOCAL:-false}
@@ -14,7 +14,7 @@ function usage(){
   echo
   echo "Example:"
   echo "getthelogs http://logs.openstack.org/00/123456/7/check/gate-tripleo-ci-foo/d3adbeef ca-dir certfile.pem"
-  echo "RETRY_LOCAL=/tmp/entries.1234567 getthelogs http://logs.openstack.org/00/123456/7/check/gate-tripleo-ci-foo/d3adbeef"
+  echo "RETRY_LOCAL=/tmp/tmp.aSNBKIWKHO getthelogs http://logs.openstack.org/00/123456/7/check/gate-tripleo-ci-foo/d3adbeef"
   echo
   echo "Downloads the logs and starts a shell from the logs root directory"
 }
@@ -23,11 +23,11 @@ function finish(){
   rc=${rc:-$?}
   echo "Processed URLs stored in $urls":
   cat $urls
-  if [ "$RETRY_LOCAL" != "false" ]; then
-    rm -f $urls
-    rm -f /tmp/wget-jobs-shuf.txt /tmp/wget-jobs.txt
-    rm -fr "$fentries"
-  fi
+  #if [ "$RETRY_LOCAL" != "false" ]; then
+    #rm -f $urls
+    #rm -f /tmp/wget-jobs-shuf.txt /tmp/wget-jobs.txt
+    #rm -fr "$fentries"
+  #fi
   trap - EXIT
   cd $TDIR/../
   echo "Download job exited ${rc}"
@@ -40,7 +40,8 @@ function get_jobs(){
   local entries=$(mktemp "$fentries/entries.XXXXXXXXXX")
   curl -sLk "$1" 2> /dev/null | $filter |\
     grep -E '\[DIR|href=\S+\/?<' | grep -vE "${drop}" |\
-    sed -e "s,.*href=[\"\']\([^\"\']*\)[\"\'].*,${1}\1,g" > $entries
+    sed -e "s,.*href=[\"\']\([^\"\']*\)[\"\'].*,${1}\1,g" |\
+    grep -v '\?' > $entries
   [ $(cat $entries | wc -l) -eq 0 ] && return
   set +u
   while read -r d; do
@@ -49,6 +50,7 @@ function get_jobs(){
     if echo $d | grep -q /$; then  # list directories via recursion
       cat $lurls | grep -q "${d%*/}/ " || get_jobs "${d%*/}/"
     else  # also list files
+      grep -q "$d" $urls && continue
       cat $lurls | grep -q "$d " || echo "$d" >> $urls
     fi
   done < <(cat -- $entries)
@@ -62,16 +64,16 @@ if [ "$RETRY_LOCAL" = "false" ]; then
   urls=$(mktemp -t tmp.XXXXXXXXXX)
   fentries=$(mktemp -d -t entries-XXXXXXXXXX)
 else
-  urls=$(ls -tr1 /tmp/tmp.* | tail -1)
-  fentries=$RETRY_LOCAL
+  fentries=$(ls -tr1d /tmp/entries-* | tail -1)
+  urls=$RETRY_LOCAL
 fi
 
 WORKERS=6
 BASEURL=${1%/}
 SC=$(dirname $BASEURL | grep -o \/ | wc -w)
-if [ SC -le 9  -o  SC -le 5 ]; then
+if [ $SC -le 9 -o $SC -le 5 ]; then
   BASEURL=${BASEURL}/logs
-elif [[ ! $(basename $BASEURL) == 'logs' && SC -le 7 ]]; then
+elif [ $(basename $BASEURL) != 'logs' -a $SC -le 7 ]; then
   BASEURL=${BASEURL}/logs
 fi
 TDIR=${BASEURL##*http://}
@@ -84,15 +86,13 @@ echo "Target dir for download: $TDIR"
 echo Will download logs from the following URLs:
 filter="cat"
 curl -sIk "$BASEURL/" | grep -qi 'content-encoding: gzip' && filter="zcat"
-if [ "$RETRY_LOCAL" = "false" ]; then
-  get_jobs "$BASEURL/"
-  rm -f wget-jobs.txt
-fi
+[ "$RETRY_LOCAL" = "false" ] &&  get_jobs "$BASEURL/"
+rm -f wget-jobs.txt
 while read -r d; do
   args="\"-nv -nc --no-use-server-timestamps --no-check-certificate \
     --accept-regex='(\.co?nf|\.ya?ml|\.json|\.log|\.txt)(\.gz)?$|messages$' \
   --reject='index.html*' \
-  --recursive -l 10 --domains logs.openstack.org,logs.rdoproject.org,storage.gra.cloud.ovh.net \
+  --recursive -l 10 \
   --no-parent \
   -erobots=off --wait 0.1 ${d}\""
   echo "$args" >> wget-jobs.txt
