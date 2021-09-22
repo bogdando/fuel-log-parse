@@ -25,7 +25,7 @@ function finish(){
 
 function get_jobs(){
   local drop="\b(ara|ara_oooq|docs|build|stackviz)\b"
-  local entries=$(curl -sLk "$1" 2> /dev/null | $filter | grep -E '\[DIR|href=\S+\/?<' | grep -vE "${drop}" | sed -e "s,.*href=[\"\']\([^\"\']*\)[\"\'].*,${1}\1,g")
+  local entries=$(curl -sLk "$1" 2> /dev/null | $filter | grep -E '\[DIR|href=\S+\/?<' | grep -vE "${drop}" | sed -e "s,.*href=[\"\']\([^\"\']*\)[\"\'].*,${1}\1,g" | grep -v '\?')
   [ "$entries:-" ] || return
   IFS=$'\n'
   set +u
