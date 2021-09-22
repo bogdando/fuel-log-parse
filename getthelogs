@@ -1,6 +1,7 @@
 #!/bin/bash
 # Source http://git.openstack.org/cgit/openstack-infra/tripleo-ci/tree/scripts/getthelogs
 # but the source is no longer maintainer or cared about
+RETRY_LOCAL=${RETRY_LOCAL:-false}
 set -eu -o pipefail
 ca=${2:-}
 cert=${3:-}
@@ -12,7 +13,8 @@ function usage(){
   echo "Helper script for downloading tripleo-ci jobs logs"
   echo
   echo "Example:"
-  echo "getthelogs http://logs.openstack.org/00/123456/7/check/gate-tripleo-ci-foo/d3adbeef"
+  echo "getthelogs http://logs.openstack.org/00/123456/7/check/gate-tripleo-ci-foo/d3adbeef ca-dir certfile.pem"
+  echo "RETRY_LOCAL=/tmp/entries.1234567 getthelogs http://logs.openstack.org/00/123456/7/check/gate-tripleo-ci-foo/d3adbeef"
   echo
   echo "Downloads the logs and starts a shell from the logs root directory"
 }
@@ -21,9 +23,11 @@ function finish(){
   rc=${rc:-$?}
   echo "Processed URLs stored in $urls":
   cat $urls
-  rm -f $urls
-  rm -f /tmp/wget-jobs-shuf.txt /tmp/wget-jobs.txt
-  rm -fr "$fentries"
+  if [ "$RETRY_LOCAL" != "false" ]; then
+    rm -f $urls
+    rm -f /tmp/wget-jobs-shuf.txt /tmp/wget-jobs.txt
+    rm -fr "$fentries"
+  fi
   trap - EXIT
   cd $TDIR/../
   echo "Download job exited ${rc}"
@@ -45,7 +49,7 @@ function get_jobs(){
     if echo $d | grep -q /$; then  # list directories via recursion
       cat $lurls | grep -q "${d%*/}/ " || get_jobs "${d%*/}/"
     else  # also list files
-      cat $lurls | grep -q "$d " || echo "$d" >> $lurls
+      cat $lurls | grep -q "$d " || echo "$d" >> $urls
     fi
   done < <(cat -- $entries)
   set -u
@@ -54,8 +58,13 @@ function get_jobs(){
 [[ "${1:--}" =~ ^\s+?- ]] && (usage; exit 1)
 type -p wget 2>&1 >/dev/null || ( echo "Please install a wget tool!"; exit 127 )
 trap finish EXIT SIGINT SIGTERM
-urls=$(mktemp -t tmp.XXXXXXXXXX)
-fentries=$(mktemp -d -t entries-XXXXXXXXXX)
+if [ "$RETRY_LOCAL" = "false" ]; then
+  urls=$(mktemp -t tmp.XXXXXXXXXX)
+  fentries=$(mktemp -d -t entries-XXXXXXXXXX)
+else
+  urls=$(ls -tr1 /tmp/tmp.* | tail -1)
+  fentries=$RETRY_LOCAL
+fi
 
 WORKERS=6
 BASEURL=${1%/}
@@ -75,8 +84,10 @@ echo "Target dir for download: $TDIR"
 echo Will download logs from the following URLs:
 filter="cat"
 curl -sIk "$BASEURL/" | grep -qi 'content-encoding: gzip' && filter="zcat"
-get_jobs "$BASEURL/"
-rm -f wget-jobs.txt
+if [ "$RETRY_LOCAL" = "false" ]; then
+  get_jobs "$BASEURL/"
+  rm -f wget-jobs.txt
+fi
 while read -r d; do
   args="\"-nv -nc --no-use-server-timestamps --no-check-certificate \
     --accept-regex='(\.co?nf|\.ya?ml|\.json|\.log|\.txt)(\.gz)?$|messages$' \
