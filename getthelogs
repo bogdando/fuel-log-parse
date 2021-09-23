@@ -7,6 +7,7 @@ ca=${2:-}
 cert=${3:-}
 
 DROP="\b(ara|ara_oooq|docs|build|stackviz)\b"
+NOT="log\.[0-9]|~lock~"
 [ -n "$ca" ] && ca="--ca-directory=$ca"
 [ -n "$cert" ] && cert="--certificate=$cert"
 
@@ -106,6 +107,7 @@ fi
 rm -f /tmp/curl-jobs.txt
 while read -r d; do
   echo $d | grep -q '^http' || continue
+  echo $d | grep -Eq "$NOT" && continue
   mkdir -p $(dirname "${d##*logs/}") ||:
   echo "-fk ${d} -o $(dirname ${d##*logs/})/$(basename ${d##*logs/})" >> /tmp/curl-jobs.txt
 done < <(cat -- $urls)
