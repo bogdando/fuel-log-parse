@@ -4,8 +4,8 @@
 RETRY_LOCAL=${RETRY_LOCAL:-false}
 set -eu -o pipefail
 
-DROP="\b(ara|ara_oooq|docs|build|stackviz)\b"
-NOT="log\.[0-9]|~lock~"
+DROP="\b(ara|ara_oooq|docs|build|stackviz|conf.modules.d)\b"
+NOT="log\.[0-9]|~lock~|md5"
 
 function usage(){
   echo "Helper script for downloading tripleo/rdo/osp/os-infra CI jobs logs"
@@ -45,7 +45,8 @@ function get_jobs(){
     [ "${2:-}" ] && echo $2 > $entries # add to tree of cached entries
     curl -sLk "$1" 2> /dev/null | $filter |\
       grep -E '\[DIR|href=\S+\/?<' | grep -vE "$DROP" |\
-      sed -e "s,.*href=[\"\']\([^\"\'\/]*\)[\"\'].*,${1}\1,g" | tee -a $entries
+      sed -e "s,.*href=[\"']\([^\"']*\)[\"'].*,${1}\1,g" |\
+      awk -F'index' {'print $1'} | tee -a $entries
   fi
   grep -q '^http' $entries || return
   set +u
