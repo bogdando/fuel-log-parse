@@ -43,7 +43,7 @@ function get_jobs(){
     [ "${2:-}" ] && echo $2 > $entries # add to tree of cached entries
     curl -sLk "$1" 2> /dev/null | $filter |\
       grep -E '\[DIR|href=\S+\/?<' | grep -vE "$DROP" |\
-      sed -e "s,.*href=[\"\']\([^\"\']*\)[\"\'].*,${1}\1,g" | tee -a $entries
+      sed -e "s,.*href=[\"\']\([^\"\'\/]*\)[\"\'].*,${1}\1,g" | tee -a $entries
   fi
   grep -q '^http' $entries || return
   set +u
@@ -109,7 +109,7 @@ while read -r d; do
   echo $d | grep -q '^http' || continue
   echo $d | grep -Eq "$NOT" && continue
   mkdir -p $(dirname "${d##*logs/}") ||:
-  echo "-fk ${d} -o $(dirname ${d##*logs/})/$(basename ${d##*logs/})" >> /tmp/curl-jobs.txt
+  echo "-Lfk ${d} -o $(dirname ${d##*logs/})/$(basename ${d##*logs/})" >> /tmp/curl-jobs.txt
 done < <(cat -- $urls)
 
 cat /tmp/curl-jobs.txt | sort -u >> /tmp/curl-jobs_.txt
