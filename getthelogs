@@ -4,7 +4,7 @@
 RETRY_LOCAL=${RETRY_LOCAL:-false}
 set -eu -o pipefail
 
-DROP="\b(ara|ara_oooq|docs|build|stackviz|conf.modules.d)\b"
+DROP="\b(ara|ara_oooq|docs|build|stackviz|conf.modules.d|.git)\b"
 NOT="log\.[0-9]|~lock~|md5"
 
 function usage(){
