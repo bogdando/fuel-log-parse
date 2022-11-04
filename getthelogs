@@ -44,7 +44,7 @@ function get_jobs(){
     entries=$(mktemp "$fentries/entries.XXXXXXXXXX")
     [ "${2:-}" ] && echo $2 > $entries # add to tree of cached entries
     curl -sLk "$1" 2> /dev/null | sed -r 's/></>\n</g' | $filter |\
-      grep -E '\[DIR|href=\S+\/?<' | grep -vE "$DROP" |\
+      grep -E '\[DIR|href=\S+\/?<' | grep -vE "$DROP|href=\"?http" |\
       sed -e "s,.*href=[\"']\([^\"']*\)[\"'].*,${1}\1,g" |\
       awk -F'index' {'print $1'} | tee -a $entries
   fi
