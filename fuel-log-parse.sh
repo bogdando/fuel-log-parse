@@ -86,7 +86,7 @@ out2=$(mktemp /tmp/tmp.XXXXXXXXXX)
 trap 'rm -f ${out} ${out2}' EXIT INT HUP
 
 # generic stuff from logs snapshot /var/log/remote/* with "mutators" applied
-grep -HEIr "${search_for}" . |\
+grep -HEIR "${search_for}" . |\
   perl -pe "${py_to_rfc3339}" |\
   perl -pe "${avc_to_rfc3164}" |\
   perl -pe "${rfc3164_to_rfc3339}" |\
