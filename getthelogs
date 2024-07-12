@@ -89,13 +89,6 @@ fi
 WORKERS=6
 BASEURL=${1%/}
 SC=$(dirname $BASEURL | grep -o \/ | wc -w)
-if [[ ! "$BASEURL" =~ "rhos-ci-logs" ]]; then
-  if [ $SC -le 9 -o $SC -le 5 ] && [[ ! "$SC" =~ "rhos-ci-logs" ]]; then
-    BASEURL=${BASEURL}/logs
-  elif [ $(basename $BASEURL) != 'logs' -a $SC -le 7 ]; then
-    BASEURL=${BASEURL}/logs
-  fi
-fi
 TDIR=${BASEURL##*http://}
 TDIR=${TDIR##*https://}
 TDIR=/tmp/${TDIR}
