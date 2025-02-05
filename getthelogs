@@ -9,6 +9,7 @@ NOT="log\.[0-9]|~lock~|md5"
 
 function usage(){
   echo "Helper script for downloading tripleo/rdo/osp/os-infra CI jobs logs"
+  echo "Downloads the logs and starts a shell from the logs root directory"
   echo
   echo "Example:"
   echo "getthelogs http://logs.openstack.org/00/123456/7/check/gate-tripleo-ci-foo/d3adbeef"
@@ -17,7 +18,23 @@ function usage(){
   echo "(helpful to get the logs of another run of the same job - retaining the files structure):"
   echo "RETRY_LOCAL=/tmp/entries.123456789O getthelogs http://logs.openstack.org/00/123456/8/check/gate-tripleo-ci-foo/d3adbeef"
   echo
-  echo "Downloads the logs and starts a shell from the logs root directory"
+  echo "Repeat prepared download jobs stored in a local file"
+  echo "RETRY_LOCAL=all getthelogs"
+}
+
+WORKERS=6
+SSO="${SSO:-null}"
+COOK=""
+if [ "$SSO" != "null" ] ; then
+  curl --fail  --negotiate -u: -b cookies -c cookies -L "$SSO"  &> /dev/null
+  COOK="-b cookies -Ok"
+fi
+
+function getit(){
+  # Do not fail if something is missing / cannot be downloaded
+  set +e
+  cat /tmp/curl-jobs-shuf.txt  | xargs -r -n1 -P ${1} -I{} sh -c "curl {} | ${2}"
+  set -e
 }
 
 function finish(){
@@ -43,7 +60,13 @@ function get_jobs(){
   else
     entries=$(mktemp "$fentries/entries.XXXXXXXXXX")
     [ "${2:-}" ] && echo $2 > $entries # add to tree of cached entries
-    curl -sLk "$1" 2> /dev/null | sed -r 's/></>\n</g' | $filter |\
+    f=$(basename ${1%/})
+    if [ "x$COOK" = "x" ]; then
+      curl -sLk $COOK "$1" 2> /dev/null > "$f"
+    else
+      curl -sLk $COOK "${1%/}" 2> /dev/null
+    fi
+    cat "$f" | sed -r 's/></>\n</g' | $filter |\
       grep -E '\[DIR|href=\S+\/?<' | grep -vE "$DROP|href=\"?http" |\
       sed -e "s,.*href=[\"']\([^\"']*\)[\"'].*,${1}\1,g" |\
       awk -F'index' {'print $1'} | tee -a $entries
@@ -77,6 +100,11 @@ function get_jobs(){
   cat $lurls >> $urls
 }
 
+if [ "$RETRY_LOCAL" = "all" ]; then
+  getit $WORKERS cat
+  exit 0
+fi
+
 [[ "${1:--}" =~ ^\s+?- ]] && (usage; exit 1)
 trap finish EXIT SIGINT SIGTERM
 urls=$(mktemp -t tmp.XXXXXXXXXX)
@@ -86,7 +114,6 @@ else
   fentries=$RETRY_LOCAL
 fi
 
-WORKERS=6
 BASEURL=${1%/}
 SC=$(dirname $BASEURL | grep -o \/ | wc -w)
 TDIR=${BASEURL##*http://}
@@ -98,7 +125,13 @@ cd "$TDIR"
 echo "Target dir for download: $TDIR"
 echo Will download logs from the following URLs:
 filter="cat"
-curl -sIk "$BASEURL/" | grep -qi 'content-encoding: gzip' && filter="zcat"
+if [ "x$COOK" = "x" ]; then
+  curl -sIk $COOK "$BASEURL/" | grep -qi 'content-encoding: gzip' && filter="zcat"
+else
+  curl -sIk $COOK "$BASEURL"
+  f=$(basename "$BASEURL")
+  grep -qi 'content-encoding: gzip' "$f" && filter="zcat"
+fi
 if [ "$RETRY_LOCAL" = "false" ]; then
   get_jobs "$BASEURL/"
 else
@@ -111,13 +144,13 @@ while read -r d; do
   echo $d | grep -q '^http' || continue
   echo $d | grep -Eq "$NOT" && continue
   mkdir -p $(dirname "${d##*logs/}") ||:
-  echo "-Lfk ${d} -o $(dirname ${d##*logs/})/$(basename ${d##*logs/})" >> /tmp/curl-jobs.txt
+  echo "-Lfk ${COOK} ${d} -o $(dirname ${d##*logs/})/$(basename ${d##*logs/})" >> /tmp/curl-jobs.txt
 done < <(cat -- $urls)
 
 cat /tmp/curl-jobs.txt | sort -u >> /tmp/curl-jobs_.txt
 cat /tmp/curl-jobs_.txt | shuf > /tmp/curl-jobs-shuf.txt
 rm -f /tmp/curl-jobs_.txt
-# Do not fail if something is missing / cannot be downloaded
+getit $WORKERS $filter
 set +e
 cat /tmp/curl-jobs-shuf.txt  | xargs -r -n1 -P ${WORKERS} -I{} sh -c "curl {} | $filter"
 set -e
